@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.charset.Charset;
-import java.util.regex.Pattern;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 public class RitiProtocolDecoder extends BaseProtocolDecoder {
 
@@ -58,25 +59,26 @@ public class RitiProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(String.valueOf(buf.readUnsignedShort()), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, String.valueOf(buf.readUnsignedShort()));
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         position.set("mode", buf.readUnsignedByte());
         position.set("command", buf.readUnsignedByte());
-        position.set(Event.KEY_POWER, buf.readUnsignedShort());
+        position.set(Position.KEY_POWER, buf.readUnsignedShort());
 
         buf.skipBytes(5);
         buf.readUnsignedShort();
         buf.readUnsignedShort();
 
-        position.set("distance", buf.readUnsignedInt());
-        position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+        position.set(Position.KEY_DISTANCE, buf.readUnsignedInt());
+        position.set(Position.KEY_TRIP_ODOMETER, buf.readUnsignedInt());
 
         // Parse GPRMC
         int end = buf.indexOf(buf.readerIndex(), buf.writerIndex(), (byte) '*');
-        String gprmc = buf.toString(buf.readerIndex(), end - buf.readerIndex(), Charset.defaultCharset());
+        String gprmc = buf.toString(buf.readerIndex(), end - buf.readerIndex(), StandardCharsets.US_ASCII);
         Parser parser = new Parser(PATTERN, gprmc);
         if (!parser.matches()) {
             return null;

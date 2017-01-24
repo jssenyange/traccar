@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,14 +37,13 @@ public class ServerResource extends BaseResource {
     @PermitAll
     @GET
     public Server get() throws SQLException {
-        return Context.getDataManager().getServer();
+        return Context.getPermissionsManager().getServer();
     }
 
     @PUT
     public Response update(Server entity) throws SQLException {
         Context.getPermissionsManager().checkAdmin(getUserId());
-        Context.getDataManager().updateServer(entity);
-        Context.getPermissionsManager().refresh();
+        Context.getPermissionsManager().updateServer(entity);
         return Response.ok(entity).build();
     }
 

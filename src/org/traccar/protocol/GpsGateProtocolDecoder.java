@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
 
@@ -31,7 +33,7 @@ public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
-    private static final Pattern PATTERN = new PatternBuilder()
+    private static final Pattern PATTERN_GPRMC = new PatternBuilder()
             .text("$GPRMC,")
             .number("(dd)(dd)(dd).?(d+)?,")      // time
             .expression("([AV]),")               // validity
@@ -42,6 +44,24 @@ public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+.d+)?,")                 // speed
             .number("(d+.d+)?,")                 // course
             .number("(dd)(dd)(dd)")              // date (ddmmyy)
+            .any()
+            .compile();
+
+    private static final Pattern PATTERN_FRCMD = new PatternBuilder()
+            .text("$FRCMD,")
+            .number("(d+),")                     // imei
+            .expression("[^,]*,")                // command
+            .expression("[^,]*,")
+            .number("(d+)(dd.d+),")              // latitude
+            .expression("([NS]),")
+            .number("(d+)(dd.d+),")              // longitude
+            .expression("([EW]),")
+            .number("(d+.?d*),")                 // altitude
+            .number("(d+.?d*),")                 // speed
+            .number("(d+.?d*)?,")                // course
+            .number("(dd)(dd)(dd),")             // date (ddmmyy)
+            .number("(dd)(dd)(dd).?(d+)?,")      // time
+            .expression("([01])")                // validity
             .any()
             .compile();
 
@@ -66,7 +86,8 @@ public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
                 int endIndex = sentence.indexOf(',', beginIndex);
                 if (endIndex != -1) {
                     String imei = sentence.substring(beginIndex, endIndex);
-                    if (identify(imei, channel, remoteAddress)) {
+                    DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
+                    if (deviceSession != null) {
                         if (channel != null) {
                             send(channel, "$FRSES," + channel.getId());
                         }
@@ -85,16 +106,21 @@ public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
             // Version check
             send(channel, "$FRVER,1,0,GpsGate Server 1.0");
 
-        } else if (sentence.startsWith("$GPRMC,") && hasDeviceId()) {
+        } else if (sentence.startsWith("$GPRMC,")) {
 
-            Parser parser = new Parser(PATTERN, sentence);
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
+
+            Parser parser = new Parser(PATTERN_GPRMC, sentence);
             if (!parser.matches()) {
                 return null;
             }
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt(), parser.nextInt());
@@ -109,6 +135,38 @@ public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
             position.setTime(dateBuilder.getDate());
 
             return position;
+
+        } else if (sentence.startsWith("$FRCMD,")) {
+
+            Parser parser = new Parser(PATTERN_FRCMD, sentence);
+            if (!parser.matches()) {
+                return null;
+            }
+
+            Position position = new Position();
+            position.setProtocol(getProtocolName());
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+            if (deviceSession == null) {
+                return null;
+            }
+            position.setDeviceId(deviceSession.getDeviceId());
+
+            position.setLatitude(parser.nextCoordinate());
+            position.setLongitude(parser.nextCoordinate());
+            position.setAltitude(parser.nextDouble());
+            position.setSpeed(parser.nextDouble());
+            position.setCourse(parser.nextDouble());
+
+            DateBuilder dateBuilder = new DateBuilder()
+                    .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
+                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt(), parser.nextInt());
+            position.setTime(dateBuilder.getDate());
+
+            position.setValid(parser.next().equals("1"));
+
+            return position;
+
         }
 
         return null;

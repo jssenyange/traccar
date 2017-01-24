@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@ package org.traccar.protocol;
 
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
@@ -68,17 +68,18 @@ public class ArnaviProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
-        position.set(Event.KEY_INDEX, parser.nextInt());
-        position.set(Event.KEY_POWER, parser.nextInt() * 0.01);
-        position.set(Event.KEY_BATTERY, parser.nextInt() * 0.01);
-        position.set(Event.KEY_IGNITION, parser.nextInt() == 1);
-        position.set(Event.KEY_INPUT, parser.nextInt());
-        position.set(Event.KEY_SATELLITES, parser.nextInt());
+        position.set(Position.KEY_INDEX, parser.nextInt());
+        position.set(Position.KEY_POWER, parser.nextInt() * 0.01);
+        position.set(Position.KEY_BATTERY, parser.nextInt() * 0.01);
+        position.set(Position.KEY_IGNITION, parser.nextInt() == 1);
+        position.set(Position.KEY_INPUT, parser.nextInt());
+        position.set(Position.KEY_SATELLITES, parser.nextInt());
 
         DateBuilder dateBuilder = new DateBuilder()
                 .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());

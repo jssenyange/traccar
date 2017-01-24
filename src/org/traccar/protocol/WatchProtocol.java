@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.traccar.BaseProtocol;
 import org.traccar.CharacterDelimiterFrameDecoder;
 import org.traccar.TrackerServer;
+import org.traccar.model.Command;
 
 import java.util.List;
 
@@ -29,16 +30,31 @@ public class WatchProtocol extends BaseProtocol {
 
     public WatchProtocol() {
         super("watch");
+        setSupportedCommands(
+                Command.TYPE_POSITION_SINGLE,
+                Command.TYPE_POSITION_PERIODIC,
+                Command.TYPE_SOS_NUMBER,
+                Command.TYPE_ALARM_SOS,
+                Command.TYPE_ALARM_BATTERY,
+                Command.TYPE_REBOOT_DEVICE,
+                Command.TYPE_ALARM_REMOVE,
+                Command.TYPE_SILENCE_TIME,
+                Command.TYPE_ALARM_CLOCK,
+                Command.TYPE_SET_PHONEBOOK,
+                Command.TYPE_VOICE_MESSAGE,
+                Command.TYPE_SET_TIMEZONE,
+                Command.TYPE_SET_INDICATOR);
     }
 
     @Override
     public void initTrackerServers(List<TrackerServer> serverList) {
-        serverList.add(new TrackerServer(new ServerBootstrap(), this.getName()) {
+        serverList.add(new TrackerServer(new ServerBootstrap(), getName()) {
             @Override
             protected void addSpecificHandlers(ChannelPipeline pipeline) {
                 pipeline.addLast("frameDecoder", new CharacterDelimiterFrameDecoder(1024, ']'));
-                pipeline.addLast("stringDecoder", new StringDecoder());
                 pipeline.addLast("stringEncoder", new StringEncoder());
+                pipeline.addLast("stringDecoder", new StringDecoder());
+                pipeline.addLast("objectEncoder", new WatchProtocolEncoder());
                 pipeline.addLast("objectDecoder", new WatchProtocolDecoder(WatchProtocol.this));
             }
         });

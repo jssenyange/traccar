@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,19 +15,21 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
-import org.traccar.model.Event;
+import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 
 public class NoranProtocolDecoder extends BaseProtocolDecoder {
 
@@ -37,6 +39,7 @@ public class NoranProtocolDecoder extends BaseProtocolDecoder {
 
     public static final int MSG_UPLOAD_POSITION = 0x0008;
     public static final int MSG_UPLOAD_POSITION_NEW = 0x0032;
+    public static final int MSG_CONTROL = 0x0002;
     public static final int MSG_CONTROL_RESPONSE = 0x8009;
     public static final int MSG_ALARM = 0x0003;
     public static final int MSG_SHAKE_HAND = 0x0000;
@@ -57,13 +60,13 @@ public class NoranProtocolDecoder extends BaseProtocolDecoder {
 
             ChannelBuffer response = ChannelBuffers.dynamicBuffer(ByteOrder.LITTLE_ENDIAN, 13);
             response.writeBytes(
-                    ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "\r\n*KW", Charset.defaultCharset()));
+                    ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "\r\n*KW", StandardCharsets.US_ASCII));
             response.writeByte(0);
             response.writeShort(response.capacity());
             response.writeShort(MSG_SHAKE_HAND_RESPONSE);
             response.writeByte(1); // status
             response.writeBytes(
-                    ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "\r\n", Charset.defaultCharset()));
+                    ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "\r\n", StandardCharsets.US_ASCII));
 
             channel.write(response, remoteAddress);
 
@@ -87,13 +90,29 @@ public class NoranProtocolDecoder extends BaseProtocolDecoder {
 
             position.setValid(BitUtil.check(buf.readUnsignedByte(), 0));
 
-            position.set(Event.KEY_ALARM, buf.readUnsignedByte());
+            short alarm = buf.readUnsignedByte();
+            switch (alarm) {
+                case 1:
+                    position.set(Position.KEY_ALARM, Position.ALARM_SOS);
+                    break;
+                case 2:
+                    position.set(Position.KEY_ALARM, Position.ALARM_OVERSPEED);
+                    break;
+                case 3:
+                    position.set(Position.KEY_ALARM, Position.ALARM_GEOFENCE_EXIT);
+                    break;
+                case 9:
+                    position.set(Position.KEY_ALARM, Position.ALARM_POWER_OFF);
+                    break;
+                default:
+                    break;
+            }
 
             if (newFormat) {
-                position.setSpeed(buf.readUnsignedInt());
+                position.setSpeed(UnitsConverter.knotsFromKph(buf.readUnsignedInt()));
                 position.setCourse(buf.readFloat());
             } else {
-                position.setSpeed(buf.readUnsignedByte());
+                position.setSpeed(UnitsConverter.knotsFromKph(buf.readUnsignedByte()));
                 position.setCourse(buf.readUnsignedShort());
             }
             position.setLongitude(buf.readFloat());
@@ -117,24 +136,25 @@ public class NoranProtocolDecoder extends BaseProtocolDecoder {
             } else {
                 rawId = buf.readBytes(11);
             }
-            String id = rawId.toString(Charset.defaultCharset()).replaceAll("[^\\p{Print}]", "");
-            if (!identify(id, channel, remoteAddress)) {
+            String id = rawId.toString(StandardCharsets.US_ASCII).replaceAll("[^\\p{Print}]", "");
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, id);
+            if (deviceSession == null) {
                 return null;
             }
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             if (newFormat) {
                 DateFormat dateFormat = new SimpleDateFormat("yy-MM-dd HH:mm:ss");
-                position.setTime(dateFormat.parse(buf.readBytes(17).toString(Charset.defaultCharset())));
+                position.setTime(dateFormat.parse(buf.readBytes(17).toString(StandardCharsets.US_ASCII)));
                 buf.readByte();
             }
 
             if (!newFormat) {
-                position.set(Event.PREFIX_IO + 1, buf.readUnsignedByte());
-                position.set(Event.KEY_FUEL, buf.readUnsignedByte());
+                position.set(Position.PREFIX_IO + 1, buf.readUnsignedByte());
+                position.set(Position.KEY_FUEL, buf.readUnsignedByte());
             } else if (type == MSG_UPLOAD_POSITION_NEW) {
-                position.set(Event.PREFIX_TEMP + 1, buf.readShort());
-                position.set(Event.KEY_ODOMETER, buf.readFloat());
+                position.set(Position.PREFIX_TEMP + 1, buf.readShort());
+                position.set(Position.KEY_ODOMETER, buf.readFloat());
             }
 
             return position;

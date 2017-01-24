@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,21 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BitUtil;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
 import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.BitUtil;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class BceProtocolDecoder extends BaseProtocolDecoder {
 
@@ -49,7 +52,8 @@ public class BceProtocolDecoder extends BaseProtocolDecoder {
         ChannelBuffer buf = (ChannelBuffer) msg;
 
         String imei = String.format("%015d", buf.readLong());
-        if (!identify(imei, channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -65,7 +69,7 @@ public class BceProtocolDecoder extends BaseProtocolDecoder {
 
                 Position position = new Position();
                 position.setProtocol(getProtocolName());
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
                 int structEnd = buf.readUnsignedByte() + buf.readerIndex();
 
@@ -93,22 +97,22 @@ public class BceProtocolDecoder extends BaseProtocolDecoder {
                         position.setSpeed(buf.readUnsignedByte());
 
                         int gps = buf.readUnsignedByte();
-                        position.set(Event.KEY_SATELLITES, gps & 0xf);
-                        position.set(Event.KEY_HDOP, gps >> 4);
+                        position.set(Position.KEY_SATELLITES, gps & 0xf);
+                        position.set(Position.KEY_HDOP, gps >> 4);
 
                         position.setCourse(buf.readUnsignedByte());
                         position.setAltitude(buf.readUnsignedShort());
 
-                        position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+                        position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
                     }
 
                     if (BitUtil.check(mask, 1)) {
-                        position.set(Event.KEY_INPUT, buf.readUnsignedShort());
+                        position.set(Position.KEY_INPUT, buf.readUnsignedShort());
                     }
 
                     for (int i = 1; i <= 8; i++) {
                         if (BitUtil.check(mask, i + 1)) {
-                            position.set(Event.PREFIX_ADC + i, buf.readUnsignedShort());
+                            position.set(Position.PREFIX_ADC + i, buf.readUnsignedShort());
                         }
                     }
 
@@ -126,11 +130,10 @@ public class BceProtocolDecoder extends BaseProtocolDecoder {
                     }
 
                     if (BitUtil.check(mask, 14)) {
-                        position.set(Event.KEY_MCC, buf.readUnsignedShort());
-                        position.set(Event.KEY_MNC, buf.readUnsignedByte());
-                        position.set(Event.KEY_LAC, buf.readUnsignedShort());
-                        position.set(Event.KEY_CID, buf.readUnsignedShort());
-                        position.set(Event.KEY_GSM, buf.readUnsignedByte());
+                        position.setNetwork(new Network(CellTower.from(
+                                buf.readUnsignedShort(), buf.readUnsignedByte(),
+                                buf.readUnsignedShort(), buf.readUnsignedShort())));
+                        position.set(Position.KEY_RSSI, buf.readUnsignedByte());
                         buf.readUnsignedByte();
                     }
 

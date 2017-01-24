@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,20 +31,23 @@ public class SuntechProtocol extends BaseProtocol {
     public SuntechProtocol() {
         super("suntech");
         setSupportedCommands(
+                Command.TYPE_OUTPUT_CONTROL,
+                Command.TYPE_REBOOT_DEVICE,
+                Command.TYPE_POSITION_SINGLE,
                 Command.TYPE_ENGINE_STOP,
-                Command.TYPE_ENGINE_STOP);
+                Command.TYPE_ENGINE_RESUME);
     }
 
     @Override
     public void initTrackerServers(List<TrackerServer> serverList) {
-        serverList.add(new TrackerServer(new ServerBootstrap(), this.getName()) {
+        serverList.add(new TrackerServer(new ServerBootstrap(), getName()) {
             @Override
             protected void addSpecificHandlers(ChannelPipeline pipeline) {
                 pipeline.addLast("frameDecoder", new CharacterDelimiterFrameDecoder(1024, '\r'));
-                pipeline.addLast("stringDecoder", new StringDecoder());
                 pipeline.addLast("stringEncoder", new StringEncoder());
-                pipeline.addLast("objectDecoder", new SuntechProtocolDecoder(SuntechProtocol.this));
+                pipeline.addLast("stringDecoder", new StringDecoder());
                 pipeline.addLast("objectEncoder", new SuntechProtocolEncoder());
+                pipeline.addLast("objectDecoder", new SuntechProtocolDecoder(SuntechProtocol.this));
             }
         });
     }

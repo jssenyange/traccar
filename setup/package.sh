@@ -15,7 +15,6 @@ fi
 VERSION=$1
 
 check_requirement () {
-  eval $1 &>/dev/null
   if ! eval $1 &>/dev/null
   then
     echo $2
@@ -23,135 +22,135 @@ check_requirement () {
   fi 
 }
 
-check_requirement "ls ../../ext-*" "Missing ../../ext-X.X.X (https://www.sencha.com/legal/GPL/)"
-check_requirement "ls wrapper-delta-pack-*.tar.gz" "Missing wrapper-delta-pack-*.tar.gz (http://wrapper.tanukisoftware.com/doc/english/download.jsp)"
-check_requirement "ls wrapper-windows-x86-64-*.zip" "Missing wrapper-windows-x86-64-*.zip (http://www.krenger.ch/blog/tag/java-service-wrapper/)"
-check_requirement "ls isetup-*.exe" "Missing isetup-*.exe (http://www.jrsoftware.org/isdl.php)"
+check_requirement "ls ../../ext-6.2.0" "Missing ../../ext-6.2.0 (https://www.sencha.com/legal/GPL/)"
+check_requirement "ls yajsw-*.zip" "Missing yajsw-*.zip (https://sourceforge.net/projects/yajsw/files/)"
+check_requirement "ls innosetup-*.exe" "Missing isetup-*.exe (http://www.jrsoftware.org/isdl.php)"
 check_requirement "which sencha" "Missing sencha cmd package (https://www.sencha.com/products/extjs/cmd-download/)"
 check_requirement "which wine" "Missing wine package"
 check_requirement "which innoextract" "Missing innoextract package"
 check_requirement "which makeself" "Missing makeself package"
+check_requirement "which dos2unix" "Missing dos2unix package"
 
 prepare () {
+  unzip yajsw-*.zip
+  mv yajsw-*/ yajsw/
 
-  tar -xzf wrapper-delta-pack-*.tar.gz
-  mv wrapper-delta-pack-*/ wrapper/
+  ../traccar-web/tools/minify.sh
 
-  ../tools/minify.sh
-
-  innoextract isetup-*.exe
-  echo "If you got any errors here try isetup version 5.5.5 (or check what versions are supported by 'innoextract -v')"
+  innoextract innosetup-*.exe
+  echo "If you got any errors here try isetup version 5.5.5 (or check supported versions using 'innoextract -v')"
 }
 
 cleanup () {
+  rm -r yajsw/
 
-  rm -rf wrapper/
+  rm ../traccar-web/web/app.min.js
 
-  rm ../web/app.min.js
-
-  rm -rf app/
+  rm -r app/
 }
 
-prepare_windows_64 () {
-  unzip wrapper-windows-x86-64-*.zip
-  cp wrapper-windows-*/bin/wrapper.exe wrapper/bin/wrapper-windows-x86-32.exe
-  cp wrapper-windows-*/lib/wrapper.dll wrapper/lib/wrapper-windows-x86-32.dll
-  cp wrapper-windows-*/lib/wrapper.jar wrapper/lib/wrapper.jar
-  rm -rf wrapper-windows-*/
+copy_wrapper () {
+  cp yajsw/$1/setenv* out/$1
+  cp yajsw/$1/wrapper* out/$1
+  cp yajsw/$1/install* out/$1
+  cp yajsw/$1/start* out/$1
+  cp yajsw/$1/stop* out/$1
+  cp yajsw/$1/uninstall* out/$1
+
+  chmod +x out/$1/*
+
+  cp yajsw/conf/wrapper.conf.default out/conf
+
+  touch out/conf/wrapper.conf
+  echo "wrapper.java.command=java" >> out/conf/wrapper.conf
+  echo "wrapper.java.app.jar=tracker-server.jar" >> out/conf/wrapper.conf
+  echo "wrapper.app.parameter.1=./conf/traccar.xml" >> out/conf/wrapper.conf
+  echo "wrapper.java.additional.1=-Dfile.encoding=UTF-8" >> out/conf/wrapper.conf
+  echo "wrapper.logfile=logs/wrapper.log.YYYYMMDD" >> out/conf/wrapper.conf
+  echo "wrapper.logfile.rollmode=DATE" >> out/conf/wrapper.conf
+  echo "wrapper.ntservice.name=traccar" >> out/conf/wrapper.conf
+  echo "wrapper.ntservice.displayname=Traccar" >> out/conf/wrapper.conf
+  echo "wrapper.ntservice.description=Traccar" >> out/conf/wrapper.conf
+  echo "wrapper.daemon.run_level_dir=\${if (new File('/etc/rc0.d').exists()) return '/etc/rcX.d' else return '/etc/init.d/rcX.d'}" >> out/conf/wrapper.conf
+
+  cp -r yajsw/lib/* out/lib
+  find out/lib -type f -name ReadMe.txt -exec rm -f {} \;
+
+  cp yajsw/templates/* out/templates
+
+  cp yajsw/wrapper*.jar out
+
+  if which xattr &>/dev/null
+  then
+    xattr -dr com.apple.quarantine out
+  fi
 }
 
-prepare_linux_32 () {
-  cp unix/setup.sh out
-  cp wrapper/bin/wrapper-linux-x86-32 out/bin/wrapper
-  cp wrapper/lib/libwrapper-linux-x86-32.so out/lib/libwrapper.so
-}
-
-prepare_linux_64 () {
-  cp unix/setup.sh out
-  cp wrapper/bin/wrapper-linux-x86-64 out/bin/wrapper
-  cp wrapper/lib/libwrapper-linux-x86-64.so out/lib/libwrapper.so
-}
-
-prepare_linux_arm () {
-  cp unix/linux-arm-setup.sh out/setup.sh
-  cp wrapper/bin/wrapper-linux-armel-32 out/bin
-  cp wrapper/bin/wrapper-linux-armhf-32 out/bin
-  cp wrapper/lib/libwrapper-linux-armel-32.so out/lib
-  cp wrapper/lib/libwrapper-linux-armhf-32.so out/lib
-}
-
-prepare_macosx_64 () {
-  cp unix/setup.sh out
-  cp wrapper/bin/wrapper-macosx-universal-64 out/bin/wrapper
-  cp wrapper/lib/libwrapper-macosx-universal-64.jnilib out/lib/libwrapper.jnilib
+copy_files () {
+  cp ../target/tracker-server.jar out
+  cp ../target/lib/* out/lib
+  cp ../schema/* out/schema
+  cp -r ../templates/* out/templates
+  cp -r ../traccar-web/web/* out/web
+  cp default.xml out/conf
+  cp traccar.xml out/conf
 }
 
 package_windows () {
+  mkdir -p out/{bat,conf,data,lib,logs,web,schema,templates}
 
-  if [ "$#" -gt 1 ]
-  then
-    eval $2
-  fi
+  copy_wrapper "bat"
+  copy_files
 
-  wine app/ISCC.exe windows/traccar.iss
+  wine app/ISCC.exe traccar.iss
 
-  zip -j traccar-$1-$VERSION.zip windows/Output/setup.exe README.txt
+  zip -j traccar-windows-$VERSION.zip Output/traccar-setup.exe README.txt
 
-  rm -rf windows/Output/
-  rm -rf tmp/
+  rm -r Output
+  rm -r tmp
+  rm -r out
 }
 
 package_unix () {
+  mkdir -p out/{bin,conf,data,lib,logs,web,schema,templates}
 
-  mkdir -p out/{bin,conf,data,lib,logs,web}
+  copy_wrapper "bin"
+  find out -type f \( -name \*.sh -o -name \*.vm \) -print0 | xargs -0 dos2unix
+  copy_files
 
-  cp wrapper/src/bin/sh.script.in out/bin/traccar
-  cp wrapper/lib/wrapper.jar out/lib
-  cp wrapper/src/conf/wrapper.conf.in out/conf/wrapper.conf
+  makeself out traccar.run "traccar" "\
+if which java &>/dev/null ; \
+then \
+if [ \$(java -version 2>&1 | grep -i version | sed 's/.*version \"\(.*\)\.\(.*\)\..*\"/\1\2/; 1q') -lt 17 ] ; \
+then \
+echo 'Java 7 or higher required' ; \
+else \
+mkdir -p /opt/traccar ; \
+cp -r * /opt/traccar ; \
+chmod -R go+rX /opt/traccar ; \
+/opt/traccar/bin/installDaemon.sh ; \
+fi ; \
+else \
+echo 'Java runtime is required' ; \
+fi"
 
-  sed -i 's/tail -1/tail -n 1/g' out/bin/traccar
-  chmod +x out/bin/traccar
-
-  cp ../target/tracker-server.jar out
-  cp ../target/lib/* out/lib
-  cp ../database/* out/data
-  cp -r ../web/* out/web
-  cp unix/traccar.xml out/conf
-
-  sed -i 's/@app.name@/traccar/g' out/bin/traccar
-  sed -i 's/@app.long.name@/traccar/g' out/bin/traccar
-
-  sed -i '/wrapper.java.classpath.1/i\wrapper.java.classpath.2=../tracker-server.jar' out/conf/wrapper.conf
-  sed -i '/wrapper.app.parameter.1/i\wrapper.app.parameter.2=../conf/traccar.xml' out/conf/wrapper.conf
-  sed -i 's/wrapper.java.additional.1=/wrapper.java.additional.1=-Dfile.encoding=UTF-8/g' out/conf/wrapper.conf
-  sed -i 's/<YourMainClass>/org.traccar.Main/g' out/conf/wrapper.conf
-  sed -i 's/@app.name@/traccar/g' out/conf/wrapper.conf
-  sed -i 's/@app.long.name@/traccar/g' out/conf/wrapper.conf
-  sed -i 's/@app.description@/traccar/g' out/conf/wrapper.conf
-  sed -i 's/wrapper.logfile=..\/logs\/wrapper.log/wrapper.logfile=..\/logs\/wrapper.log.YYYYMMDD\nwrapper.logfile.rollmode=DATE/g' out/conf/wrapper.conf
-
-  eval $2
-
-  makeself out traccar.run "traccar" "chmod +x setup.sh ; ./setup.sh"
-  zip -j traccar-$1-$VERSION.zip traccar.run README.txt
+  zip -j traccar-linux-$VERSION.zip traccar.run README.txt
+  cp traccar-linux-$VERSION.zip traccar-macos-$VERSION.zip
 
   rm traccar.run
-  rm -rf out/
+  rm -r out
 }
 
 package_universal () {
+  mkdir -p out/{conf,data,lib,logs,web,schema,templates}
 
-  mkdir -p out/{conf,data,lib,logs,web}
+  copy_files
 
-  cp ../target/tracker-server.jar out
-  cp ../target/lib/* out/lib
-  cp ../database/* out/data
-  cp -r ../web/* out/web
-  cp windows/traccar.xml out/conf
   cp README.txt out
-
+  cp other/traccar.sh out
+  
   cd out
-  zip -r ../traccar-$1-$VERSION.zip * README.txt
+  zip -r ../traccar-other-$VERSION.zip *
   cd ..
 
   rm -rf out/
@@ -159,12 +158,8 @@ package_universal () {
 
 prepare
 
-package_windows "windows-32"
-package_windows "windows-64" "prepare_windows_64"
-package_unix "linux-32" "prepare_linux_32"
-package_unix "linux-64" "prepare_linux_64"
-package_unix "linux-arm" "prepare_linux_arm"
-package_unix "macosx-64" "prepare_macosx_64"
-package_universal "other"
+package_windows
+package_unix
+package_universal
 
 cleanup

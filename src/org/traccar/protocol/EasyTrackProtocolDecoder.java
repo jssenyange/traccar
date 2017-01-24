@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class EasyTrackProtocolDecoder extends BaseProtocolDecoder {
 
@@ -70,10 +71,11 @@ public class EasyTrackProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         position.set("command", parser.next());
 
@@ -84,13 +86,13 @@ public class EasyTrackProtocolDecoder extends BaseProtocolDecoder {
                 .setTime(parser.nextInt(16), parser.nextInt(16), parser.nextInt(16));
         position.setTime(dateBuilder.getDate());
 
-        if (BitUtil.check(parser.nextInt(16), 7)) {
+        if (BitUtil.check(parser.nextInt(16), 3)) {
             position.setLatitude(-parser.nextInt(16) / 600000.0);
         } else {
             position.setLatitude(parser.nextInt(16) / 600000.0);
         }
 
-        if (BitUtil.check(parser.nextInt(16), 7)) {
+        if (BitUtil.check(parser.nextInt(16), 3)) {
             position.setLongitude(-parser.nextInt(16) / 600000.0);
         } else {
             position.setLongitude(parser.nextInt(16) / 600000.0);
@@ -99,11 +101,11 @@ public class EasyTrackProtocolDecoder extends BaseProtocolDecoder {
         position.setSpeed(parser.nextInt(16) / 100.0);
         position.setCourse(parser.nextInt(16) / 100.0);
 
-        position.set(Event.KEY_STATUS, parser.next());
+        position.set(Position.KEY_STATUS, parser.next());
         position.set("signal", parser.next());
-        position.set(Event.KEY_POWER, parser.nextDouble());
+        position.set(Position.KEY_POWER, parser.nextDouble());
         position.set("oil", parser.nextInt(16));
-        position.set(Event.KEY_ODOMETER, parser.nextInt(16));
+        position.set(Position.KEY_ODOMETER, parser.nextInt(16) * 100);
 
         position.setAltitude(parser.nextDouble());
 

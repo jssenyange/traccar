@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.Parser;
+import org.traccar.helper.PatternBuilder;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
 import java.util.Date;
 import java.util.regex.Pattern;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.Parser;
-import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class GpsmtaProtocolDecoder extends BaseProtocolDecoder {
 
@@ -59,10 +60,11 @@ public class GpsmtaProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         String time = parser.next();
         position.setTime(new Date(Long.parseLong(time) * 1000));
@@ -74,10 +76,10 @@ public class GpsmtaProtocolDecoder extends BaseProtocolDecoder {
         parser.next();
         position.setAltitude(parser.nextInt());
 
-        position.set(Event.KEY_STATUS, parser.nextInt());
-        position.set(Event.KEY_BATTERY, parser.nextInt());
-        position.set(Event.PREFIX_TEMP + 1, parser.nextInt());
-        position.set(Event.KEY_CHARGE, parser.nextInt() == 1);
+        position.set(Position.KEY_STATUS, parser.nextInt());
+        position.set(Position.KEY_BATTERY, parser.nextInt());
+        position.set(Position.PREFIX_TEMP + 1, parser.nextInt());
+        position.set(Position.KEY_CHARGE, parser.nextInt() == 1);
 
         if (channel != null) {
             channel.write(time, remoteAddress);

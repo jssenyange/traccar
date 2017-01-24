@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
  */
 package org.traccar;
 
+import org.jboss.netty.channel.Channel;
+import org.traccar.model.Position;
+
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import org.jboss.netty.channel.Channel;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class RemoteAddressHandler extends ExtendedObjectDecoder {
 
@@ -31,7 +31,7 @@ public class RemoteAddressHandler extends ExtendedObjectDecoder {
 
         if (msg instanceof Position) {
             Position position = (Position) msg;
-            position.set(Event.KEY_IP, hostAddress);
+            position.set(Position.KEY_IP, hostAddress);
         }
 
         return msg;

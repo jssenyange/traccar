@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,20 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.charset.Charset;
-import java.util.regex.Pattern;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBufferIndexFinder;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.StringFinder;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 public class EnforaProtocolDecoder extends BaseProtocolDecoder {
 
@@ -75,8 +77,9 @@ public class EnforaProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        String imei = buf.toString(index, IMEI_LENGTH, Charset.defaultCharset());
-        if (!identify(imei, channel, remoteAddress)) {
+        String imei = buf.toString(index, IMEI_LENGTH, StandardCharsets.US_ASCII);
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -86,7 +89,7 @@ public class EnforaProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        String sentence = buf.toString(start, buf.readableBytes() - start, Charset.defaultCharset());
+        String sentence = buf.toString(start, buf.readableBytes() - start, StandardCharsets.US_ASCII);
         Parser parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
             return null;
@@ -94,7 +97,7 @@ public class EnforaProtocolDecoder extends BaseProtocolDecoder {
 
         Position position = new Position();
         position.setProtocol(getProtocolName());
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         DateBuilder dateBuilder = new DateBuilder()
                 .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt(), parser.nextInt());

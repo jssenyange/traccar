@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.Date;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.Date;
 
 public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
 
@@ -63,10 +64,10 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
-    private Position decodePosition(int type, ChannelBuffer buf) {
+    private Position decodePosition(DeviceSession deviceSession, int type, ChannelBuffer buf) {
 
         Position position = new Position();
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
         position.setProtocol(getProtocolName());
 
         position.setTime(new Date(buf.readUnsignedInt() * 1000));
@@ -85,42 +86,42 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if (type == MSG_MINI_EVENT_REPORT) {
-            position.set(Event.KEY_SATELLITES, buf.getUnsignedByte(buf.readerIndex()) & 0xf);
+            position.set(Position.KEY_SATELLITES, buf.getUnsignedByte(buf.readerIndex()) & 0xf);
             position.setValid((buf.readUnsignedByte() & 0x20) == 0);
         } else {
-            position.set(Event.KEY_SATELLITES, buf.readUnsignedByte());
+            position.set(Position.KEY_SATELLITES, buf.readUnsignedByte());
             position.setValid((buf.readUnsignedByte() & 0x08) == 0);
         }
 
         if (type != MSG_MINI_EVENT_REPORT) {
             position.set("carrier", buf.readUnsignedShort());
-            position.set(Event.KEY_GSM, buf.readShort());
+            position.set(Position.KEY_RSSI, buf.readShort());
         }
 
         position.set("modem", buf.readUnsignedByte());
 
         if (type != MSG_MINI_EVENT_REPORT) {
-            position.set(Event.KEY_HDOP, buf.readUnsignedByte());
+            position.set(Position.KEY_HDOP, buf.readUnsignedByte());
         }
 
-        position.set(Event.KEY_INPUT, buf.readUnsignedByte());
+        position.set(Position.KEY_INPUT, buf.readUnsignedByte());
 
         if (type != MSG_MINI_EVENT_REPORT) {
-            position.set(Event.KEY_STATUS, buf.readUnsignedByte());
+            position.set(Position.KEY_STATUS, buf.readUnsignedByte());
         }
 
         if (type == MSG_EVENT_REPORT || type == MSG_MINI_EVENT_REPORT) {
             if (type != MSG_MINI_EVENT_REPORT) {
                 buf.readUnsignedByte(); // event index
             }
-            position.set(Event.KEY_EVENT, buf.readUnsignedByte());
+            position.set(Position.KEY_EVENT, buf.readUnsignedByte());
         }
 
         int accType = BitUtil.from(buf.getUnsignedByte(buf.readerIndex()), 6);
         int accCount = BitUtil.to(buf.readUnsignedByte(), 6);
 
         if (type != MSG_MINI_EVENT_REPORT) {
-            buf.readUnsignedByte(); // reserved
+            position.set("append", buf.readUnsignedByte());
         }
 
         if (accType == 1) {
@@ -129,7 +130,9 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
         }
 
         for (int i = 0; i < accCount; i++) {
-            position.set("acc" + i, buf.readUnsignedInt());
+            if (buf.readableBytes() >= 4) {
+                position.set("acc" + i, buf.readUnsignedInt());
+            }
         }
 
         return position;
@@ -146,18 +149,8 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
             int content = buf.readUnsignedByte();
 
             if (BitUtil.check(content, 0)) {
-
-                int length = buf.readUnsignedByte();
-                long id = 0;
-                for (int i = 0; i < length; i++) {
-                    int b = buf.readUnsignedByte();
-                    id = id * 10 + (b >> 4);
-                    if ((b & 0xf) != 0xf) {
-                        id = id * 10 + (b & 0xf);
-                    }
-                }
-
-                identify(String.valueOf(id), channel, remoteAddress);
+                String id = ChannelBuffers.hexDump(buf.readBytes(buf.readUnsignedByte()));
+                getDeviceSession(channel, remoteAddress, id);
             }
 
             if (BitUtil.check(content, 1)) {
@@ -182,7 +175,8 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
 
         }
 
-        if (!hasDeviceId()) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -195,7 +189,7 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if (type == MSG_EVENT_REPORT || type == MSG_LOCATE_REPORT || type == MSG_MINI_EVENT_REPORT) {
-            return decodePosition(type, buf);
+            return decodePosition(deviceSession, type, buf);
         }
 
         return null;

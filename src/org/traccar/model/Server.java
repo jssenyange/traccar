@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,15 @@
  */
 package org.traccar.model;
 
-public class Server {
+import org.traccar.helper.Log;
 
-    private long id;
+public class Server extends Extensible {
 
-    public long getId() {
-        return id;
+    public String getVersion() {
+        return Log.getAppVersion();
     }
 
-    public void setId(long id) {
-        this.id = id;
+    public void setVersion(String version) {
     }
 
     private boolean registration;
@@ -77,16 +76,6 @@ public class Server {
         this.mapUrl = mapUrl;
     }
 
-    private String language;
-
-    public String getLanguage() {
-        return language;
-    }
-
-    public void setLanguage(String language) {
-        this.language = language;
-    }
-
     private String distanceUnit;
 
     public String getDistanceUnit() {
@@ -135,6 +124,36 @@ public class Server {
 
     public void setZoom(int zoom) {
         this.zoom = zoom;
+    }
+
+    private boolean twelveHourFormat;
+
+    public boolean getTwelveHourFormat() {
+        return twelveHourFormat;
+    }
+
+    public void setTwelveHourFormat(boolean twelveHourFormat) {
+        this.twelveHourFormat = twelveHourFormat;
+    }
+
+    private boolean forceSettings;
+
+    public boolean getForceSettings() {
+        return forceSettings;
+    }
+
+    public void setForceSettings(boolean forceSettings) {
+        this.forceSettings = forceSettings;
+    }
+
+    private String coordinateFormat;
+
+    public String getCoordinateFormat() {
+        return coordinateFormat;
+    }
+
+    public void setCoordinateFormat(String coordinateFormat) {
+        this.coordinateFormat = coordinateFormat;
     }
 
 }

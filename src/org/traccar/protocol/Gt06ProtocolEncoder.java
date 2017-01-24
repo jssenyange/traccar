@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,13 @@ package org.traccar.protocol;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.traccar.BaseProtocolEncoder;
+import org.traccar.Context;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.Log;
 import org.traccar.model.Command;
+import org.traccar.model.Device;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 public class Gt06ProtocolEncoder extends BaseProtocolEncoder {
 
@@ -39,7 +41,7 @@ public class Gt06ProtocolEncoder extends BaseProtocolEncoder {
 
         buf.writeByte(4 + content.length()); // command length
         buf.writeInt(0);
-        buf.writeBytes(content.getBytes(Charset.defaultCharset())); // command
+        buf.writeBytes(content.getBytes(StandardCharsets.US_ASCII)); // command
 
         buf.writeShort(0); // message index
 
@@ -54,11 +56,19 @@ public class Gt06ProtocolEncoder extends BaseProtocolEncoder {
     @Override
     protected Object encodeCommand(Command command) {
 
+        boolean alternative;
+        Device device = Context.getIdentityManager().getDeviceById(command.getDeviceId());
+        if (device.getAttributes().containsKey("gt06.alternative")) {
+            alternative = device.getBoolean("gt06.alternative");
+        } else {
+            alternative = Context.getConfig().getBoolean("gt06.alternative");
+        }
+
         switch (command.getType()) {
             case Command.TYPE_ENGINE_STOP:
-                return encodeContent("Relay,1#");
+                return encodeContent(alternative ? "DYD,123456#" : "Relay,1#");
             case Command.TYPE_ENGINE_RESUME:
-                return encodeContent("Relay,0#");
+                return encodeContent(alternative ? "HFYD,123456#" : "Relay,0#");
             default:
                 Log.warning(new UnsupportedOperationException(command.getType()));
                 break;

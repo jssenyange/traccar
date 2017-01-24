@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,24 +21,38 @@ import org.jboss.netty.handler.codec.frame.LineBasedFrameDecoder;
 import org.jboss.netty.handler.codec.string.StringDecoder;
 import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.traccar.BaseProtocol;
+import org.traccar.Context;
 import org.traccar.TrackerServer;
+import org.traccar.model.Command;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class WialonProtocol extends BaseProtocol {
 
     public WialonProtocol() {
         super("wialon");
+        setSupportedCommands(
+                Command.TYPE_REBOOT_DEVICE,
+                Command.TYPE_SEND_USSD,
+                Command.TYPE_IDENTIFICATION,
+                Command.TYPE_OUTPUT_CONTROL);
     }
 
     @Override
     public void initTrackerServers(List<TrackerServer> serverList) {
-        serverList.add(new TrackerServer(new ServerBootstrap(), this.getName()) {
+        serverList.add(new TrackerServer(new ServerBootstrap(), getName()) {
             @Override
             protected void addSpecificHandlers(ChannelPipeline pipeline) {
                 pipeline.addLast("frameDecoder", new LineBasedFrameDecoder(4 * 1024));
-                pipeline.addLast("stringDecoder", new StringDecoder());
                 pipeline.addLast("stringEncoder", new StringEncoder());
+                boolean utf8 = Context.getConfig().getBoolean(getName() + ".utf8");
+                if (utf8) {
+                    pipeline.addLast("stringDecoder", new StringDecoder(StandardCharsets.UTF_8));
+                } else {
+                    pipeline.addLast("stringDecoder", new StringDecoder());
+                }
+                pipeline.addLast("objectEncoder", new WialonProtocolEncoder());
                 pipeline.addLast("objectDecoder", new WialonProtocolDecoder(WialonProtocol.this));
             }
         });

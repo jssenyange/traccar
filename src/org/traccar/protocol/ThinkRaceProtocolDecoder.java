@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 public class ThinkRaceProtocolDecoder extends BaseProtocolDecoder {
@@ -63,8 +65,9 @@ public class ThinkRaceProtocolDecoder extends BaseProtocolDecoder {
             int command = buf.readUnsignedByte(); // 0x00 - heartbeat
 
             if (command == 0x01) {
-                String imei = buf.toString(buf.readerIndex(), 15, Charset.defaultCharset());
-                if (identify(imei, channel, remoteAddress) && channel != null) {
+                String imei = buf.toString(buf.readerIndex(), 15, StandardCharsets.US_ASCII);
+                DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
+                if (deviceSession != null && channel != null) {
                     ChannelBuffer response = ChannelBuffers.dynamicBuffer();
                     response.writeByte(0x48); response.writeByte(0x52); // header
                     response.writeBytes(id);
@@ -77,11 +80,16 @@ public class ThinkRaceProtocolDecoder extends BaseProtocolDecoder {
                 }
             }
 
-        } else if (hasDeviceId() && type == MSG_GPS) {
+        } else if (type == MSG_GPS) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             position.setTime(new Date(buf.readUnsignedInt() * 1000));
 
@@ -94,8 +102,8 @@ public class ThinkRaceProtocolDecoder extends BaseProtocolDecoder {
             position.setSpeed(buf.readUnsignedByte());
             position.setCourse(buf.readUnsignedByte());
 
-            position.set(Event.KEY_LAC, buf.readUnsignedShort());
-            position.set(Event.KEY_CID, buf.readUnsignedShort());
+            position.setNetwork(new Network(
+                    CellTower.fromLacCid(buf.readUnsignedShort(), buf.readUnsignedShort())));
 
             return position;
 

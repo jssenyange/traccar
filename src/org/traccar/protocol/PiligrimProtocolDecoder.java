@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,6 @@
  */
 package org.traccar.protocol;
 
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import java.net.SocketAddress;
-import java.util.LinkedList;
-import java.util.List;
-
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
@@ -30,12 +24,17 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
-
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedList;
+import java.util.List;
 
 public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
 
@@ -48,7 +47,7 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
             HttpResponse response = new DefaultHttpResponse(
                     HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
             response.setContent(ChannelBuffers.copiedBuffer(
-                    ByteOrder.BIG_ENDIAN, message, Charset.defaultCharset()));
+                    ByteOrder.BIG_ENDIAN, message, StandardCharsets.US_ASCII));
             channel.write(response);
         }
     }
@@ -81,7 +80,9 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
             sendResponse(channel, "BINGPS: OK");
 
             QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
-            if (!identify(decoder.getParameters().get("imei").get(0), channel, remoteAddress)) {
+            DeviceSession deviceSession = getDeviceSession(
+                    channel, remoteAddress, decoder.getParameters().get("imei").get(0));
+            if (deviceSession == null) {
                 return null;
             }
 
@@ -98,7 +99,7 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
 
                     Position position = new Position();
                     position.setProtocol(getProtocolName());
-                    position.setDeviceId(getDeviceId());
+                    position.setDeviceId(deviceSession.getDeviceId());
 
                     DateBuilder dateBuilder = new DateBuilder()
                             .setDay(buf.readUnsignedByte())
@@ -128,7 +129,7 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
                     position.setLongitude(longitude);
 
                     int satellites = buf.readUnsignedByte();
-                    position.set(Event.KEY_SATELLITES, satellites);
+                    position.set(Position.KEY_SATELLITES, satellites);
                     position.setValid(satellites >= 3);
 
                     position.setSpeed(buf.readUnsignedByte());
@@ -141,11 +142,11 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
                     if (type == MSG_GPS_SENSORS) {
                         double power = buf.readUnsignedByte();
                         power += buf.readUnsignedByte() << 8;
-                        position.set(Event.KEY_POWER, power * 0.01);
+                        position.set(Position.KEY_POWER, power * 0.01);
 
                         double battery = buf.readUnsignedByte();
                         battery += buf.readUnsignedByte() << 8;
-                        position.set(Event.KEY_BATTERY, battery * 0.01);
+                        position.set(Position.KEY_BATTERY, battery * 0.01);
 
                         buf.skipBytes(6);
                     }

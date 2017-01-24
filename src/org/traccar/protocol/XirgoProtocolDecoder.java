@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class XirgoProtocolDecoder extends BaseProtocolDecoder {
 
@@ -32,7 +33,9 @@ public class XirgoProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
-    private static final Pattern PATTERN = new PatternBuilder()
+    private Boolean newFormat;
+
+    private static final Pattern PATTERN_OLD = new PatternBuilder()
             .text("$$")
             .number("(d+),")                     // imei
             .number("(d+),")                     // event
@@ -52,24 +55,70 @@ public class XirgoProtocolDecoder extends BaseProtocolDecoder {
             .any()
             .compile();
 
+    private static final Pattern PATTERN_NEW = new PatternBuilder()
+            .text("$$")
+            .number("(d+),")                     // imei
+            .number("(d+),")                     // event
+            .number("(dddd)/(dd)/(dd),")         // date
+            .number("(dd):(dd):(dd),")           // time
+            .number("(-?d+.?d*),")               // latitude
+            .number("(-?d+.?d*),")               // longitude
+            .number("(-?d+.?d*),")               // altitude
+            .number("(d+.?d*),")                 // speed
+            .number("d+.?d*,")                   // acceleration
+            .number("d+.?d*,")                   // deceleration
+            .number("d+,")
+            .number("(d+.?d*),")                 // course
+            .number("(d+),")                     // satellites
+            .number("(d+.?d*),")                 // hdop
+            .number("(d+.?d*),")                 // odometer
+            .number("(d+.?d*),")                 // fuel consumption
+            .number("(d+.d+),")                  // battery
+            .number("(d+),")                     // gsm
+            .number("(d+),")                     // gps
+            .any()
+            .compile();
+
     @Override
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
 
-        Parser parser = new Parser(PATTERN, (String) msg);
-        if (!parser.matches()) {
-            return null;
+        String sentence = (String) msg;
+
+        Parser parser;
+        if (newFormat == null) {
+            parser = new Parser(PATTERN_NEW, sentence);
+            if (parser.matches()) {
+                newFormat = true;
+            } else {
+                parser = new Parser(PATTERN_OLD, sentence);
+                if (parser.matches()) {
+                    newFormat = false;
+                } else {
+                    return null;
+                }
+            }
+        } else {
+            if (newFormat) {
+                parser = new Parser(PATTERN_NEW, sentence);
+            } else {
+                parser = new Parser(PATTERN_OLD, sentence);
+            }
+            if (!parser.matches()) {
+                return null;
+            }
         }
 
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
-        position.set(Event.KEY_EVENT, parser.next());
+        position.set(Position.KEY_EVENT, parser.next());
 
         DateBuilder dateBuilder = new DateBuilder()
                 .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
@@ -82,11 +131,20 @@ public class XirgoProtocolDecoder extends BaseProtocolDecoder {
         position.setSpeed(UnitsConverter.knotsFromMph(parser.nextDouble()));
         position.setCourse(parser.nextDouble());
 
-        position.set(Event.KEY_SATELLITES, parser.next());
-        position.set(Event.KEY_HDOP, parser.next());
-        position.set(Event.KEY_BATTERY, parser.next());
-        position.set(Event.KEY_GSM, parser.next());
-        position.set(Event.KEY_ODOMETER, parser.next());
+        position.set(Position.KEY_SATELLITES, parser.next());
+        position.set(Position.KEY_HDOP, parser.next());
+
+        if (newFormat) {
+            position.set(Position.KEY_ODOMETER, parser.nextDouble() * 1609.34);
+            position.set(Position.KEY_FUEL_CONSUMPTION, parser.next());
+        }
+
+        position.set(Position.KEY_BATTERY, parser.next());
+        position.set(Position.KEY_RSSI, parser.next());
+
+        if (!newFormat) {
+            position.set(Position.KEY_ODOMETER, parser.nextDouble() * 1609.34);
+        }
 
         position.setValid(parser.nextInt() == 1);
 

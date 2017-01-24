@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
 
 public class MxtProtocolDecoder extends BaseProtocolDecoder {
 
@@ -46,7 +47,8 @@ public class MxtProtocolDecoder extends BaseProtocolDecoder {
         int type = buf.readUnsignedByte();
 
         String id = String.valueOf(buf.readUnsignedInt());
-        if (!identify(id, channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, id);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -54,12 +56,12 @@ public class MxtProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             buf.readUnsignedByte(); // protocol
             int infoGroups = buf.readUnsignedByte();
 
-            position.set(Event.KEY_INDEX, buf.readUnsignedShort());
+            position.set(Position.KEY_INDEX, buf.readUnsignedShort());
 
             DateBuilder dateBuilder = new DateBuilder().setDate(2000, 1, 1);
 
@@ -79,13 +81,15 @@ public class MxtProtocolDecoder extends BaseProtocolDecoder {
             position.setLongitude(buf.readInt() / 1000000.0);
 
             long flags = buf.readUnsignedInt();
-            position.set(Event.KEY_IGNITION, BitUtil.check(flags, 0));
-            position.set(Event.KEY_ALARM, BitUtil.check(flags, 1));
-            position.set(Event.KEY_INPUT, BitUtil.between(flags, 2, 7));
-            position.set(Event.KEY_OUTPUT, BitUtil.between(flags, 7, 10));
+            position.set(Position.KEY_IGNITION, BitUtil.check(flags, 0));
+            if (BitUtil.check(flags, 1)) {
+                position.set(Position.KEY_ALARM, Position.ALARM_GENERAL);
+            }
+            position.set(Position.KEY_INPUT, BitUtil.between(flags, 2, 7));
+            position.set(Position.KEY_OUTPUT, BitUtil.between(flags, 7, 10));
             position.setCourse(BitUtil.between(flags, 10, 13) * 45);
             //position.setValid(BitUtil.check(flags, 15));
-            position.set(Event.KEY_CHARGE, BitUtil.check(flags, 20));
+            position.set(Position.KEY_CHARGE, BitUtil.check(flags, 20));
 
             position.setSpeed(UnitsConverter.knotsFromKph(buf.readUnsignedByte()));
 
@@ -100,21 +104,21 @@ public class MxtProtocolDecoder extends BaseProtocolDecoder {
             }
 
             if (BitUtil.check(infoGroups, 2)) {
-                position.set(Event.KEY_SATELLITES, buf.readUnsignedByte());
-                position.set(Event.KEY_HDOP, buf.readUnsignedByte());
+                position.set(Position.KEY_SATELLITES, buf.readUnsignedByte());
+                position.set(Position.KEY_HDOP, buf.readUnsignedByte());
                 buf.readUnsignedByte(); // GPS accuracy
-                position.set(Event.KEY_GSM, buf.readUnsignedByte());
+                position.set(Position.KEY_RSSI, buf.readUnsignedByte());
                 buf.readUnsignedShort(); // time since boot
                 buf.readUnsignedByte(); // input voltage
-                position.set(Event.PREFIX_TEMP + 1, buf.readByte());
+                position.set(Position.PREFIX_TEMP + 1, buf.readByte());
             }
 
             if (BitUtil.check(infoGroups, 3)) {
-                position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+                position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
             }
 
             if (BitUtil.check(infoGroups, 4)) {
-                position.set("hours", buf.readUnsignedInt());
+                position.set(Position.KEY_HOURS, buf.readUnsignedInt());
             }
 
             if (BitUtil.check(infoGroups, 5)) {
@@ -122,12 +126,12 @@ public class MxtProtocolDecoder extends BaseProtocolDecoder {
             }
 
             if (BitUtil.check(infoGroups, 6)) {
-                position.set(Event.KEY_POWER, buf.readUnsignedShort() * 0.001);
-                position.set(Event.KEY_BATTERY, buf.readUnsignedShort());
+                position.set(Position.KEY_POWER, buf.readUnsignedShort() * 0.001);
+                position.set(Position.KEY_BATTERY, buf.readUnsignedShort());
             }
 
             if (BitUtil.check(infoGroups, 7)) {
-                position.set(Event.KEY_RFID, buf.readUnsignedInt());
+                position.set(Position.KEY_RFID, buf.readUnsignedInt());
             }
 
             return position;

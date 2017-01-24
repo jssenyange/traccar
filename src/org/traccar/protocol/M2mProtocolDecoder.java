@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,14 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
-
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
 
 public class M2mProtocolDecoder extends BaseProtocolDecoder {
 
@@ -60,13 +59,18 @@ public class M2mProtocolDecoder extends BaseProtocolDecoder {
                 imei.append(b % 10);
             }
 
-            identify(imei.toString(), channel, remoteAddress);
+            getDeviceSession(channel, remoteAddress, imei.toString());
 
-        } else if (hasDeviceId()) {
+        } else {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setDay(buf.readUnsignedByte() & 0x3f)
@@ -109,7 +113,7 @@ public class M2mProtocolDecoder extends BaseProtocolDecoder {
             if (satellites == 0) {
                 return null; // cell information
             }
-            position.set(Event.KEY_SATELLITES, satellites);
+            position.set(Position.KEY_SATELLITES, satellites);
 
             // decode other data
 

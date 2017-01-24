@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,19 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class FlextrackProtocolDecoder extends BaseProtocolDecoder {
 
@@ -87,11 +90,14 @@ public class FlextrackProtocolDecoder extends BaseProtocolDecoder {
             String id = parser.next();
             String iccid = parser.next();
 
-            if (!identify(iccid, channel, remoteAddress, false) && !identify(id, channel, remoteAddress)) {
+            getDeviceSession(channel, remoteAddress, iccid, id);
+
+        } else if (sentence.contains("UNITSTAT")) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
                 return null;
             }
-
-        } else if (sentence.contains("UNITSTAT") && hasDeviceId()) {
 
             Parser parser = new Parser(PATTERN, sentence);
             if (!parser.matches()) {
@@ -100,7 +106,7 @@ public class FlextrackProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             sendAcknowledgement(channel, parser.next());
 
@@ -115,19 +121,21 @@ public class FlextrackProtocolDecoder extends BaseProtocolDecoder {
             position.setSpeed(UnitsConverter.knotsFromKph(parser.nextInt()));
             position.setCourse(parser.nextInt());
 
-            position.set(Event.KEY_SATELLITES, parser.nextInt());
-            position.set(Event.KEY_BATTERY, parser.nextInt());
-            position.set(Event.KEY_GSM, parser.nextInt());
-            position.set(Event.KEY_STATUS, parser.nextInt(16));
-            position.set(Event.KEY_MCC, parser.nextInt());
-            position.set(Event.KEY_MNC, parser.nextInt());
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
+            position.set(Position.KEY_BATTERY, parser.nextInt());
+            position.set(Position.KEY_RSSI, parser.nextInt());
+            position.set(Position.KEY_STATUS, parser.nextInt(16));
+
+            int mcc = parser.nextInt();
+            int mnc = parser.nextInt();
 
             position.setAltitude(parser.nextInt());
 
-            position.set(Event.KEY_HDOP, parser.nextInt() * 0.1);
-            position.set(Event.KEY_CID, parser.nextInt(16));
-            position.set(Event.KEY_LAC, parser.nextInt(16));
-            position.set(Event.KEY_ODOMETER, parser.nextInt());
+            position.set(Position.KEY_HDOP, parser.nextInt() * 0.1);
+
+            position.setNetwork(new Network(CellTower.from(mcc, mnc, parser.nextInt(16), parser.nextInt(16))));
+
+            position.set(Position.KEY_ODOMETER, parser.nextInt());
 
             return position;
         }

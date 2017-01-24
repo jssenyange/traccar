@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,12 @@
  */
 package org.traccar;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.traccar.helper.Checksum;
+import org.traccar.helper.Log;
+import org.traccar.model.Device;
+import org.traccar.model.Position;
+
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -22,13 +28,6 @@ import java.util.Calendar;
 import java.util.Formatter;
 import java.util.Locale;
 import java.util.TimeZone;
-
-import org.traccar.helper.Checksum;
-import org.traccar.helper.Log;
-import org.traccar.model.Device;
-import org.traccar.model.Event;
-import org.traccar.model.MiscFormatter;
-import org.traccar.model.Position;
 
 public class WebDataHandler extends BaseDataHandler {
 
@@ -52,23 +51,8 @@ public class WebDataHandler extends BaseDataHandler {
             double lat = position.getLatitude();
             double lon = position.getLongitude();
 
-            char hemisphere;
-
-            if (lat < 0) {
-                hemisphere = 'S';
-            } else {
-                hemisphere = 'N';
-            }
-
-            f.format("%02d%07.4f,%c,", (int) Math.abs(lat), Math.abs(lat) % 1 * 60, hemisphere);
-
-            if (lon < 0) {
-                hemisphere = 'W';
-            } else {
-                hemisphere = 'E';
-            }
-
-            f.format("%03d%07.4f,%c,", (int) Math.abs(lon), Math.abs(lon) % 1 * 60, hemisphere);
+            f.format("%02d%07.4f,%c,", (int) Math.abs(lat), Math.abs(lat) % 1 * 60, lat < 0 ? 'S' : 'N');
+            f.format("%03d%07.4f,%c,", (int) Math.abs(lon), Math.abs(lon) % 1 * 60, lon < 0 ? 'W' : 'E');
 
             f.format("%.2f,%.2f,", position.getSpeed(), position.getCourse());
             f.format("%1$td%1$tm%1$ty,,", calendar);
@@ -80,7 +64,7 @@ public class WebDataHandler extends BaseDataHandler {
     }
 
     private String calculateStatus(Position position) {
-        if (position.getAttributes().containsKey(Event.KEY_ALARM)) {
+        if (position.getAttributes().containsKey(Position.KEY_ALARM)) {
             return "0xF841"; // STATUS_PANIC_ON
         } else if (position.getSpeed() < 1.0) {
             return "0xF020"; // STATUS_LOCATION
@@ -89,14 +73,12 @@ public class WebDataHandler extends BaseDataHandler {
         }
     }
 
-    @Override
-    protected Position handlePosition(Position position) {
+    public String formatRequest(Position position) {
 
         Device device = Context.getIdentityManager().getDeviceById(position.getDeviceId());
 
-        String attributes = MiscFormatter.toJsonString(position.getAttributes());
-
         String request = url
+                .replace("{name}", device.getName())
                 .replace("{uniqueId}", device.getUniqueId())
                 .replace("{deviceId}", String.valueOf(position.getDeviceId()))
                 .replace("{protocol}", String.valueOf(position.getProtocol()))
@@ -121,9 +103,10 @@ public class WebDataHandler extends BaseDataHandler {
 
         if (request.contains("{attributes}")) {
             try {
+                String attributes = Context.getObjectMapper().writeValueAsString(position.getAttributes());
                 request = request.replace(
                         "{attributes}", URLEncoder.encode(attributes, StandardCharsets.UTF_8.name()));
-            } catch (UnsupportedEncodingException error) {
+            } catch (UnsupportedEncodingException | JsonProcessingException error) {
                 Log.warning(error);
             }
         }
@@ -132,7 +115,13 @@ public class WebDataHandler extends BaseDataHandler {
             request = request.replace("{gprmc}", formatSentence(position));
         }
 
-        Context.getAsyncHttpClient().prepareGet(request).execute();
+        return request;
+    }
+
+    @Override
+    protected Position handlePosition(Position position) {
+
+        Context.getAsyncHttpClient().prepareGet(formatRequest(position)).execute();
 
         return position;
     }

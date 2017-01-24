@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public class TaipProtocol extends BaseProtocol {
 
     @Override
     public void initTrackerServers(List<TrackerServer> serverList) {
-        serverList.add(new TrackerServer(new ServerBootstrap(), this.getName()) {
+        serverList.add(new TrackerServer(new ServerBootstrap(), getName()) {
             @Override
             protected void addSpecificHandlers(ChannelPipeline pipeline) {
                 pipeline.addLast("frameDecoder", new CharacterDelimiterFrameDecoder(1024, '<'));
@@ -43,10 +43,11 @@ public class TaipProtocol extends BaseProtocol {
                 pipeline.addLast("objectDecoder", new TaipProtocolDecoder(TaipProtocol.this, true));
             }
         });
-        serverList.add(new TrackerServer(new ConnectionlessBootstrap(), this.getName()) {
+        serverList.add(new TrackerServer(new ConnectionlessBootstrap(), getName()) {
             @Override
             protected void addSpecificHandlers(ChannelPipeline pipeline) {
                 pipeline.addLast("stringDecoder", new StringDecoder());
+                pipeline.addLast("stringEncoder", new StringEncoder());
                 pipeline.addLast("objectDecoder", new TaipProtocolDecoder(TaipProtocol.this, false));
             }
         });

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,19 @@ package org.traccar.protocol;
 
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
+import org.traccar.model.WifiAccessPoint;
 
 import java.net.SocketAddress;
+import java.util.Date;
 import java.util.regex.Pattern;
 
 public class WatchProtocolDecoder extends BaseProtocolDecoder {
@@ -47,25 +52,80 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
             .number("(dd)(dd)(dd),")             // date (ddmmyy)
             .number("(dd)(dd)(dd),")             // time
             .expression("([AV]),")               // validity
-            .number("(d+.d+),")                  // latitude
+            .number(" *(-?d+.d+),")              // latitude
             .expression("([NS]),")
-            .number("(d+.d+),")                  // longitude
-            .expression("([EW]),")
+            .number(" *(-?d+.d+),")              // longitude
+            .expression("([EW])?,")
             .number("(d+.d+),")                  // speed
-            .number("(d+.d+),")                  // course
+            .number("(d+.?d*),")                 // course
             .number("(d+.?d*),")                 // altitude
             .number("(d+),")                     // satellites
-            .number("(d+),")                     // gsm
+            .number("(d+),")                     // rssi
             .number("(d+),")                     // battery
             .number("(d+),")                     // steps
             .number("d+,")                       // tumbles
-            .any()
+            .number("(x+),")                     // status
+            .expression("([^\\]]*)")             // cell and wifi
+            .text("]").optional()
             .compile();
 
     private void sendResponse(Channel channel, String manufacturer, String id, String content) {
         if (channel != null) {
             channel.write(String.format(
                     "[%s*%s*%04x*%s]", manufacturer, id, content.length(), content));
+        }
+    }
+
+    private String decodeAlarm(int status) {
+        if (BitUtil.check(status, 0)) {
+            return Position.ALARM_LOW_BATTERY;
+        } else if (BitUtil.check(status, 1)) {
+            return Position.ALARM_GEOFENCE_EXIT;
+        } else if (BitUtil.check(status, 2)) {
+            return Position.ALARM_GEOFENCE_ENTER;
+        } else if (BitUtil.check(status, 3)) {
+            return Position.ALARM_OVERSPEED;
+        } else if (BitUtil.check(status, 16)) {
+            return Position.ALARM_SOS;
+        } else if (BitUtil.check(status, 17)) {
+            return Position.ALARM_LOW_BATTERY;
+        } else if (BitUtil.check(status, 18)) {
+            return Position.ALARM_GEOFENCE_EXIT;
+        } else if (BitUtil.check(status, 19)) {
+            return Position.ALARM_GEOFENCE_ENTER;
+        }
+        return null;
+    }
+
+    private void decodeTail(Position position, String data) {
+        String[] values = data.split(",");
+        int index = 0;
+
+        Network network = new Network();
+
+        int cellCount = Integer.parseInt(values[index++]);
+        index += 1; // timing advance
+        int mcc = Integer.parseInt(values[index++]);
+        int mnc = Integer.parseInt(values[index++]);
+
+        for (int i = 0; i < cellCount; i++) {
+            network.addCellTower(CellTower.from(mcc, mnc,
+                    Integer.parseInt(values[index++]), Integer.parseInt(values[index++]),
+                    Integer.parseInt(values[index++])));
+        }
+
+        if (index < values.length && !values[index].isEmpty()) {
+            int wifiCount = Integer.parseInt(values[index++]);
+
+            for (int i = 0; i < wifiCount; i++) {
+                index += 1; // wifi name
+                network.addWifiAccessPoint(WifiAccessPoint.from(
+                        values[index++], Integer.parseInt(values[index++])));
+            }
+        }
+
+        if (network.getCellTowers() != null || network.getWifiAccessPoints() != null) {
+            position.setNetwork(network);
         }
     }
 
@@ -80,7 +140,8 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
 
         String manufacturer = parser.next();
         String id = parser.next();
-        if (!identify(id, channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, id);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -92,15 +153,18 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
             sendResponse(channel, manufacturer, id, "LK");
 
             if (!content.isEmpty()) {
-                Position position = new Position();
-                position.setProtocol(getProtocolName());
-                position.setDeviceId(getDeviceId());
+                String[] values = content.split(",");
+                if (values.length >= 4) {
+                    Position position = new Position();
+                    position.setProtocol(getProtocolName());
+                    position.setDeviceId(deviceSession.getDeviceId());
 
-                getLastLocation(position, null);
+                    getLastLocation(position, null);
 
-                position.set(Event.KEY_BATTERY, content.split(",")[3]);
+                    position.set(Position.KEY_BATTERY, values[3]);
 
-                return position;
+                    return position;
+                }
             }
 
         } else if (type.equals("UD") || type.equals("UD2") || type.equals("AL")) {
@@ -116,7 +180,7 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
@@ -130,17 +194,33 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
             position.setCourse(parser.nextDouble());
             position.setAltitude(parser.nextDouble());
 
-            position.set(Event.KEY_SATELLITES, parser.nextInt());
-            position.set(Event.KEY_GSM, parser.nextInt());
-            position.set(Event.KEY_BATTERY, parser.nextInt());
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
+            position.set(Position.KEY_RSSI, parser.nextInt());
+            position.set(Position.KEY_BATTERY, parser.nextInt());
 
             position.set("steps", parser.nextInt());
+
+            position.set(Position.KEY_ALARM, decodeAlarm(parser.nextInt(16)));
+
+            decodeTail(position, parser.next());
 
             return position;
 
         } else if (type.equals("TKQ")) {
 
             sendResponse(channel, manufacturer, id, "TKQ");
+
+        } else if (type.equals("PULSE")) {
+
+            Position position = new Position();
+            position.setProtocol(getProtocolName());
+            position.setDeviceId(deviceSession.getDeviceId());
+            getLastLocation(position, new Date());
+            position.setValid(false);
+            String pulse = content.substring(1);
+            position.set("pulse", pulse);
+            position.set(Position.KEY_RESULT, pulse);
+            return position;
 
         }
 

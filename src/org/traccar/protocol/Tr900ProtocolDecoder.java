@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class Tr900ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -66,10 +67,11 @@ public class Tr900ProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         position.setValid(parser.nextInt() == 1);
 
@@ -83,12 +85,12 @@ public class Tr900ProtocolDecoder extends BaseProtocolDecoder {
         position.setSpeed(parser.nextDouble());
         position.setCourse(parser.nextDouble());
 
-        position.set(Event.KEY_GSM, parser.next());
-        position.set(Event.KEY_EVENT, parser.nextInt());
-        position.set(Event.PREFIX_ADC + 1, parser.nextInt());
-        position.set(Event.KEY_BATTERY, parser.nextInt());
-        position.set(Event.KEY_INPUT, parser.next());
-        position.set(Event.KEY_STATUS, parser.next());
+        position.set(Position.KEY_RSSI, parser.next());
+        position.set(Position.KEY_EVENT, parser.nextInt());
+        position.set(Position.PREFIX_ADC + 1, parser.nextInt());
+        position.set(Position.KEY_BATTERY, parser.nextInt());
+        position.set(Position.KEY_INPUT, parser.next());
+        position.set(Position.KEY_STATUS, parser.next());
 
         return position;
     }

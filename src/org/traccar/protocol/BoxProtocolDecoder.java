@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class BoxProtocolDecoder extends BaseProtocolDecoder {
 
@@ -57,7 +58,7 @@ public class BoxProtocolDecoder extends BaseProtocolDecoder {
 
             int index = sentence.indexOf(',', 2) + 1;
             String id = sentence.substring(index, sentence.indexOf(',', index));
-            identify(id, channel, remoteAddress);
+            getDeviceSession(channel, remoteAddress, id);
 
         } else if (sentence.startsWith("E,")) {
 
@@ -65,7 +66,12 @@ public class BoxProtocolDecoder extends BaseProtocolDecoder {
                 channel.write("A," + sentence.substring(2) + "\r");
             }
 
-        } else if (sentence.startsWith("L,") && hasDeviceId()) {
+        } else if (sentence.startsWith("L,")) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
 
             Parser parser = new Parser(PATTERN, sentence);
             if (!parser.matches()) {
@@ -73,7 +79,7 @@ public class BoxProtocolDecoder extends BaseProtocolDecoder {
             }
 
             Position position = new Position();
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
             position.setProtocol(getProtocolName());
 
             DateBuilder dateBuilder = new DateBuilder()
@@ -86,12 +92,12 @@ public class BoxProtocolDecoder extends BaseProtocolDecoder {
             position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
             position.setCourse(parser.nextDouble());
 
-            position.set(Event.KEY_ODOMETER, parser.next());
-            position.set(Event.KEY_EVENT, parser.next());
+            position.set(Position.KEY_DISTANCE, parser.nextDouble() * 1000);
+            position.set(Position.KEY_EVENT, parser.next());
 
             int status = parser.nextInt();
             position.setValid((status & 0x04) == 0);
-            position.set(Event.KEY_STATUS, status);
+            position.set(Position.KEY_STATUS, status);
 
             return position;
         }

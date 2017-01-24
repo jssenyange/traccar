@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,6 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.charset.Charset;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
@@ -29,12 +24,18 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Log;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 
 public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -55,7 +56,7 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
         HttpResponse response = new DefaultHttpResponse(
                 HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
-        ChannelBuffer begin = ChannelBuffers.copiedBuffer("#ACK#", Charset.defaultCharset());
+        ChannelBuffer begin = ChannelBuffers.copiedBuffer("#ACK#", StandardCharsets.US_ASCII);
         ChannelBuffer end = ChannelBuffers.directBuffer(3);
         end.writeByte(packetId);
         end.writeByte(packetCount);
@@ -110,7 +111,7 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
 
     }
 
-    private List<Position> parseFormatA(ChannelBuffer buf) {
+    private List<Position> parseFormatA(DeviceSession deviceSession, ChannelBuffer buf) {
         List<Position> positions = new LinkedList<>();
 
         FloatReader latitudeReader = new FloatReader();
@@ -120,8 +121,8 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
         try {
             while (buf.readable()) {
                 Position position = new Position();
-                position.setDeviceId(getDeviceId());
                 position.setProtocol(getProtocolName());
+                position.setDeviceId(deviceSession.getDeviceId());
 
                 short flags = buf.readUnsignedByte();
 
@@ -154,39 +155,40 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
                 }
 
                 if (BitUtil.check(flags, 3)) {
-                    position.set(Event.KEY_ODOMETER, buf.readUnsignedShort());
+                    position.set(Position.KEY_ODOMETER, buf.readUnsignedShort() * 1000);
                 }
 
                 if (BitUtil.check(flags, 4)) {
-                    position.set(Event.KEY_FUEL, buf.readUnsignedInt() + "|" + buf.readUnsignedInt());
+                    position.set(Position.KEY_FUEL_CONSUMPTION + "Accumulator1", buf.readUnsignedInt());
+                    position.set(Position.KEY_FUEL_CONSUMPTION + "Accumulator2", buf.readUnsignedInt());
                     position.set("hours1", buf.readUnsignedShort());
                     position.set("hours2", buf.readUnsignedShort());
                 }
 
                 if (BitUtil.check(flags, 5)) {
-                    position.set(Event.PREFIX_ADC + 1, buf.readUnsignedShort() & 0x03ff);
-                    position.set(Event.PREFIX_ADC + 2, buf.readUnsignedShort() & 0x03ff);
-                    position.set(Event.PREFIX_ADC + 3, buf.readUnsignedShort() & 0x03ff);
-                    position.set(Event.PREFIX_ADC + 4, buf.readUnsignedShort() & 0x03ff);
+                    position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort() & 0x03ff);
+                    position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort() & 0x03ff);
+                    position.set(Position.PREFIX_ADC + 3, buf.readUnsignedShort() & 0x03ff);
+                    position.set(Position.PREFIX_ADC + 4, buf.readUnsignedShort() & 0x03ff);
                 }
 
                 if (BitUtil.check(flags, 6)) {
-                    position.set(Event.PREFIX_TEMP + 1, buf.readByte());
+                    position.set(Position.PREFIX_TEMP + 1, buf.readByte());
                     buf.getUnsignedByte(buf.readerIndex()); // control (>> 4)
-                    position.set(Event.KEY_INPUT, buf.readUnsignedShort() & 0x0fff);
+                    position.set(Position.KEY_INPUT, buf.readUnsignedShort() & 0x0fff);
                     buf.readUnsignedShort(); // old sensor state (& 0x0fff)
                 }
 
                 if (BitUtil.check(flags, 7)) {
-                    position.set(Event.KEY_BATTERY, buf.getUnsignedByte(buf.readerIndex()) >> 2);
-                    position.set(Event.KEY_POWER, buf.readUnsignedShort() & 0x03ff);
+                    position.set(Position.KEY_BATTERY, buf.getUnsignedByte(buf.readerIndex()) >> 2);
+                    position.set(Position.KEY_POWER, buf.readUnsignedShort() & 0x03ff);
                     buf.readByte(); // microcontroller temperature
 
-                    position.set(Event.KEY_GSM, (buf.getUnsignedByte(buf.readerIndex()) >> 4) & 0x07);
+                    position.set(Position.KEY_RSSI, (buf.getUnsignedByte(buf.readerIndex()) >> 4) & 0x07);
 
                     int satellites = buf.readUnsignedByte() & 0x0f;
                     position.setValid(satellites >= 3);
-                    position.set(Event.KEY_SATELLITES, satellites);
+                    position.set(Position.KEY_SATELLITES, satellites);
                 }
                 positions.add(position);
             }
@@ -197,9 +199,9 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
         return positions;
     }
 
-    private Position parseFormatA1(ChannelBuffer buf) {
+    private Position parseFormatA1(DeviceSession deviceSession, ChannelBuffer buf) {
         Position position = new Position();
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
         position.setProtocol(getProtocolName());
 
         short flags = buf.readUnsignedByte();
@@ -226,11 +228,11 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
             position.setAltitude(buf.readUnsignedShort());
             position.setSpeed(buf.readUnsignedByte());
             position.setCourse(buf.readByte());
-            position.set(Event.KEY_ODOMETER, new FloatReader().readFloat(buf));
+            position.set(Position.KEY_ODOMETER, new FloatReader().readFloat(buf));
         }
 
         if (BitUtil.check(flags, 1)) {
-            new FloatReader().readFloat(buf); // fuel consumtion
+            position.set(Position.KEY_FUEL_CONSUMPTION, new FloatReader().readFloat(buf));
             position.set("hours", new FloatReader().readFloat(buf));
             position.set("tank", buf.readUnsignedByte() * 0.4);
         }
@@ -238,34 +240,34 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
         if (BitUtil.check(flags, 2)) {
             position.set("engine", buf.readUnsignedShort() * 0.125);
             position.set("pedals", buf.readUnsignedByte());
-            position.set(Event.PREFIX_TEMP + 1, buf.readUnsignedByte() - 40);
+            position.set(Position.PREFIX_TEMP + 1, buf.readUnsignedByte() - 40);
             buf.readUnsignedShort(); // service odometer
         }
 
         if (BitUtil.check(flags, 3)) {
-            position.set(Event.KEY_FUEL, buf.readUnsignedShort());
-            position.set(Event.PREFIX_ADC + 2, buf.readUnsignedShort());
-            position.set(Event.PREFIX_ADC + 3, buf.readUnsignedShort());
-            position.set(Event.PREFIX_ADC + 4, buf.readUnsignedShort());
+            position.set(Position.KEY_FUEL, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 3, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 4, buf.readUnsignedShort());
         }
 
         if (BitUtil.check(flags, 4)) {
-            position.set(Event.PREFIX_TEMP + 1, buf.readByte());
+            position.set(Position.PREFIX_TEMP + 1, buf.readByte());
             buf.getUnsignedByte(buf.readerIndex()); // control (>> 4)
-            position.set(Event.KEY_INPUT, buf.readUnsignedShort() & 0x0fff);
+            position.set(Position.KEY_INPUT, buf.readUnsignedShort() & 0x0fff);
             buf.readUnsignedShort(); // old sensor state (& 0x0fff)
         }
 
         if (BitUtil.check(flags, 5)) {
-            position.set(Event.KEY_BATTERY, buf.getUnsignedByte(buf.readerIndex()) >> 2);
-            position.set(Event.KEY_POWER, buf.readUnsignedShort() & 0x03ff);
+            position.set(Position.KEY_BATTERY, buf.getUnsignedByte(buf.readerIndex()) >> 2);
+            position.set(Position.KEY_POWER, buf.readUnsignedShort() & 0x03ff);
             buf.readByte(); // microcontroller temperature
 
-            position.set(Event.KEY_GSM, buf.getUnsignedByte(buf.readerIndex()) >> 5);
+            position.set(Position.KEY_RSSI, buf.getUnsignedByte(buf.readerIndex()) >> 5);
 
             int satellites = buf.readUnsignedByte() & 0x1f;
             position.setValid(satellites >= 3);
-            position.set(Event.KEY_SATELLITES, satellites);
+            position.set(Position.KEY_SATELLITES, satellites);
         }
 
         // other data
@@ -282,8 +284,9 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
 
         buf.skipBytes("id=".length());
         int index = buf.indexOf(buf.readerIndex(), buf.writerIndex(), (byte) '&');
-        String uniqueId = buf.toString(buf.readerIndex(), index - buf.readerIndex(), Charset.defaultCharset());
-        if (!identify(uniqueId, channel, remoteAddress)) {
+        String uniqueId = buf.toString(buf.readerIndex(), index - buf.readerIndex(), StandardCharsets.US_ASCII);
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, uniqueId);
+        if (deviceSession == null) {
             return null;
         }
         buf.skipBytes(uniqueId.length());
@@ -303,9 +306,9 @@ public class Mta6ProtocolDecoder extends BaseProtocolDecoder {
 
         if (packetId == 0x31 || packetId == 0x32 || packetId == 0x36) {
             if (simple) {
-                return parseFormatA1(buf);
+                return parseFormatA1(deviceSession, buf);
             } else {
-                return parseFormatA(buf);
+                return parseFormatA(deviceSession, buf);
             }
         } //else if (0x34 0x38 0x4F 0x59)
 

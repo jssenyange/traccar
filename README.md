@@ -1,19 +1,20 @@
 # [Traccar](https://www.traccar.org)
 [![Build Status](https://travis-ci.org/tananaev/traccar.svg?branch=master)](https://travis-ci.org/tananaev/traccar)
 
-## Contacts
-
-Author - Anton Tananaev ([anton.tananaev@gmail.com](mailto:anton.tananaev@gmail.com))
-
-Website - [https://www.traccar.org](https://www.traccar.org)
-
 ## Overview
 
 Traccar is open source server for various GPS tracking devices. Project is written in Java and works on most platforms with installed Java Runtime Environment.
 
 ## Build
 
-Please read <a href="https://www.traccar.org/build/">build from source documentation</a> on the official website.
+Please read [build from source documentation](https://www.traccar.org/build/) on the official website.
+
+[Docker documentation](https://www.traccar.org/docker/) is also available of the website.
+
+## Team
+
+- Anton Tananaev ([anton@traccar.org](mailto:anton@traccar.org))
+- Andrey Kunitsyn ([andrey@traccar.org](mailto:andrey@traccar.org))
 
 ## License
 

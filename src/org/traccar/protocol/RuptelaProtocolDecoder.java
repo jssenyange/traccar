@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 
 public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
 
@@ -33,7 +34,9 @@ public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
-    private static final int COMMAND_RECORDS = 0x01;
+    public static final int MSG_RECORDS = 1;
+    public static final int MSG_EXTENDED_RECORDS = 68;
+    public static final int MSG_SMS_VIA_GPRS = 108;
 
     @Override
     protected Object decode(
@@ -44,13 +47,14 @@ public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
         buf.readUnsignedShort(); // data length
 
         String imei = String.format("%015d", buf.readLong());
-        if (!identify(imei, channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
+        if (deviceSession == null) {
             return null;
         }
 
         int type = buf.readUnsignedByte();
 
-        if (type == COMMAND_RECORDS) {
+        if (type == MSG_RECORDS || type == MSG_EXTENDED_RECORDS) {
             List<Position> positions = new LinkedList<>();
 
             buf.readUnsignedByte(); // records left
@@ -59,50 +63,61 @@ public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
             for (int i = 0; i < count; i++) {
                 Position position = new Position();
                 position.setProtocol(getProtocolName());
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
                 position.setTime(new Date(buf.readUnsignedInt() * 1000));
                 buf.readUnsignedByte(); // timestamp extension
 
+                if (type == MSG_EXTENDED_RECORDS) {
+                    buf.readUnsignedByte(); // record extension
+                }
+
                 buf.readUnsignedByte(); // priority (reserved)
 
+                position.setValid(true);
                 position.setLongitude(buf.readInt() / 10000000.0);
                 position.setLatitude(buf.readInt() / 10000000.0);
                 position.setAltitude(buf.readUnsignedShort() / 10.0);
                 position.setCourse(buf.readUnsignedShort() / 100.0);
 
-                int satellites = buf.readUnsignedByte();
-                position.set(Event.KEY_SATELLITES, satellites);
-                position.setValid(satellites >= 3);
+                position.set(Position.KEY_SATELLITES, buf.readUnsignedByte());
 
                 position.setSpeed(UnitsConverter.knotsFromKph(buf.readUnsignedShort()));
 
-                position.set(Event.KEY_HDOP, buf.readUnsignedByte() / 10.0);
+                position.set(Position.KEY_HDOP, buf.readUnsignedByte() / 10.0);
 
-                buf.readUnsignedByte();
+                if (type == MSG_EXTENDED_RECORDS) {
+                    buf.readUnsignedShort(); // event
+                } else {
+                    buf.readUnsignedByte(); // event
+                }
 
                 // Read 1 byte data
                 int cnt = buf.readUnsignedByte();
                 for (int j = 0; j < cnt; j++) {
-                    position.set(Event.PREFIX_IO + buf.readUnsignedByte(), buf.readUnsignedByte());
+                    int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
+                    position.set(Position.PREFIX_IO + id, buf.readUnsignedByte());
                 }
 
                 // Read 2 byte data
                 cnt = buf.readUnsignedByte();
                 for (int j = 0; j < cnt; j++) {
-                    position.set(Event.PREFIX_IO + buf.readUnsignedByte(), buf.readUnsignedShort());
+                    int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
+                    position.set(Position.PREFIX_IO + id, buf.readUnsignedShort());
                 }
 
                 // Read 4 byte data
                 cnt = buf.readUnsignedByte();
                 for (int j = 0; j < cnt; j++) {
-                    position.set(Event.PREFIX_IO + buf.readUnsignedByte(), buf.readUnsignedInt());
+                    int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
+                    position.set(Position.PREFIX_IO + id, buf.readUnsignedInt());
                 }
 
                 // Read 8 byte data
                 cnt = buf.readUnsignedByte();
                 for (int j = 0; j < cnt; j++) {
-                    position.set(Event.PREFIX_IO + buf.readUnsignedByte(), buf.readLong());
+                    int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
+                    position.set(Position.PREFIX_IO + id, buf.readLong());
                 }
 
                 positions.add(position);

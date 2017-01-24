@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
 
 public class Avl301ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -46,7 +49,7 @@ public class Avl301ProtocolDecoder extends BaseProtocolDecoder {
     public static final int MSG_STATUS = 'H';
     public static final int MSG_GPS_LBS_STATUS = '$';
 
-    private static void sendResponse(Channel channel, int type) {
+    private void sendResponse(Channel channel, int type) {
         if (channel != null) {
             ChannelBuffer response = ChannelBuffers.directBuffer(5);
             response.writeByte('$');
@@ -69,18 +72,24 @@ public class Avl301ProtocolDecoder extends BaseProtocolDecoder {
 
         if (type == MSG_LOGIN) {
 
-            if (identify(readImei(buf), channel, remoteAddress)) {
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, readImei(buf));
+            if (deviceSession == null) {
                 sendResponse(channel, type);
             }
 
-        } else if (hasDeviceId() && type == MSG_STATUS) {
+        } else if (type == MSG_STATUS) {
 
             sendResponse(channel, type);
 
-        } else if (hasDeviceId() && type == MSG_GPS_LBS_STATUS) {
+        } else if (type == MSG_GPS_LBS_STATUS) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
 
             Position position = new Position();
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
             position.setProtocol(getProtocolName());
 
             DateBuilder dateBuilder = new DateBuilder()
@@ -89,7 +98,7 @@ public class Avl301ProtocolDecoder extends BaseProtocolDecoder {
             position.setTime(dateBuilder.getDate());
 
             int gpsLength = buf.readUnsignedByte(); // gps len and sat
-            position.set(Event.KEY_SATELLITES, gpsLength & 0xf);
+            position.set(Position.KEY_SATELLITES, gpsLength & 0xf);
 
             buf.readUnsignedByte(); // satellites
 
@@ -114,16 +123,17 @@ public class Avl301ProtocolDecoder extends BaseProtocolDecoder {
                 position.set("acc", (union & 0x8000) != 0);
             }
 
-            position.set(Event.KEY_LAC, buf.readUnsignedShort());
-            position.set(Event.KEY_CID, buf.readUnsignedMedium());
-            position.set(Event.KEY_ALARM, true);
+            position.setNetwork(new Network(
+                    CellTower.fromLacCid(buf.readUnsignedShort(), buf.readUnsignedMedium())));
+
+            position.set(Position.KEY_ALARM, Position.ALARM_GENERAL);
             int flags = buf.readUnsignedByte();
             position.set("acc", (flags & 0x2) != 0);
 
             // parse other flags
 
-            position.set(Event.KEY_POWER, buf.readUnsignedByte());
-            position.set(Event.KEY_GSM, buf.readUnsignedByte());
+            position.set(Position.KEY_POWER, buf.readUnsignedByte());
+            position.set(Position.KEY_RSSI, buf.readUnsignedByte());
 
             return position;
         }

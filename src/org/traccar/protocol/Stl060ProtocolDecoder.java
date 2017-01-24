@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class Stl060ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -78,10 +79,11 @@ public class Stl060ProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         DateBuilder dateBuilder = new DateBuilder()
                 .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
@@ -95,23 +97,23 @@ public class Stl060ProtocolDecoder extends BaseProtocolDecoder {
 
         // Old format
         if (parser.hasNext(5)) {
-            position.set(Event.KEY_ODOMETER, parser.nextInt());
-            position.set(Event.KEY_IGNITION, parser.nextInt());
-            position.set(Event.KEY_INPUT, parser.nextInt() + parser.nextInt() << 1);
-            position.set(Event.KEY_FUEL, parser.nextInt());
+            position.set(Position.KEY_ODOMETER, parser.nextInt());
+            position.set(Position.KEY_IGNITION, parser.nextInt() == 1);
+            position.set(Position.KEY_INPUT, parser.nextInt() + parser.nextInt() << 1);
+            position.set(Position.KEY_FUEL, parser.nextInt());
         }
 
         // New format
         if (parser.hasNext(10)) {
-            position.set(Event.KEY_CHARGE, parser.nextInt() == 1);
-            position.set(Event.KEY_IGNITION, parser.nextInt());
-            position.set(Event.KEY_INPUT, parser.nextInt());
-            position.set(Event.KEY_RFID, parser.next());
-            position.set(Event.KEY_ODOMETER, parser.nextInt());
-            position.set(Event.PREFIX_TEMP + 1, parser.nextInt());
-            position.set(Event.KEY_FUEL, parser.nextInt());
+            position.set(Position.KEY_CHARGE, parser.nextInt() == 1);
+            position.set(Position.KEY_IGNITION, parser.nextInt() == 1);
+            position.set(Position.KEY_INPUT, parser.nextInt());
+            position.set(Position.KEY_RFID, parser.next());
+            position.set(Position.KEY_ODOMETER, parser.nextInt());
+            position.set(Position.PREFIX_TEMP + 1, parser.nextInt());
+            position.set(Position.KEY_FUEL, parser.nextInt());
             position.set("accel", parser.nextInt() == 1);
-            position.set(Event.KEY_OUTPUT, parser.nextInt() + parser.nextInt() << 1);
+            position.set(Position.KEY_OUTPUT, parser.nextInt() + parser.nextInt() << 1);
         }
 
         position.setValid(parser.next().equals("A"));

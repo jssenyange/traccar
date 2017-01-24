@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
+import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class MiniFinderProtocolDecoder extends BaseProtocolDecoder {
 
@@ -33,7 +35,7 @@ public class MiniFinderProtocolDecoder extends BaseProtocolDecoder {
     }
 
     private static final Pattern PATTERN = new PatternBuilder()
-            .expression("![AD],")
+            .expression("![A-D],")
             .number("(d+)/(d+)/(d+),")           // date
             .number("(d+):(d+):(d+),")           // time
             .number("(-?d+.d+),")                // latitude
@@ -60,9 +62,14 @@ public class MiniFinderProtocolDecoder extends BaseProtocolDecoder {
 
         if (sentence.startsWith("!1")) {
 
-            identify(sentence.substring(3, sentence.length()), channel, remoteAddress);
+            getDeviceSession(channel, remoteAddress, sentence.substring(3, sentence.length()));
 
-        } else if ((sentence.startsWith("!D") || sentence.startsWith("!A")) && hasDeviceId()) {
+        } else if (sentence.matches("![A-D].*")) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
 
             Parser parser = new Parser(PATTERN, sentence);
             if (!parser.matches()) {
@@ -71,7 +78,7 @@ public class MiniFinderProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
@@ -80,7 +87,7 @@ public class MiniFinderProtocolDecoder extends BaseProtocolDecoder {
 
             position.setLatitude(parser.nextDouble());
             position.setLongitude(parser.nextDouble());
-            position.setSpeed(parser.nextDouble());
+            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
 
             position.setCourse(parser.nextDouble());
             if (position.getCourse() > 360) {
@@ -90,13 +97,38 @@ public class MiniFinderProtocolDecoder extends BaseProtocolDecoder {
             if (parser.hasNext(5)) {
 
                 int flags = parser.nextInt(16);
-                position.set(Event.KEY_FLAGS, flags);
+
                 position.setValid(BitUtil.check(flags, 0));
+
+                if (BitUtil.check(flags, 2)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_FAULT);
+                }
+                if (BitUtil.check(flags, 6)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_SOS);
+                }
+                if (BitUtil.check(flags, 7)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_OVERSPEED);
+                }
+                if (BitUtil.check(flags, 8)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_FALL_DOWN);
+                }
+                if (BitUtil.check(flags, 9) || BitUtil.check(flags, 10) || BitUtil.check(flags, 11)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_GEOFENCE);
+                }
+                if (BitUtil.check(flags, 12)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_LOW_BATTERY);
+                }
+                if (BitUtil.check(flags, 15) || BitUtil.check(flags, 14)) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_MOVEMENT);
+                }
+
+                position.set(Position.KEY_RSSI, BitUtil.between(flags, 16, 20));
+                position.set(Position.KEY_CHARGE, BitUtil.check(flags, 22));
 
                 position.setAltitude(parser.nextDouble());
 
-                position.set(Event.KEY_BATTERY, parser.next());
-                position.set(Event.KEY_SATELLITES, parser.next());
+                position.set(Position.KEY_BATTERY, parser.next());
+                position.set(Position.KEY_SATELLITES, parser.next());
 
             }
 

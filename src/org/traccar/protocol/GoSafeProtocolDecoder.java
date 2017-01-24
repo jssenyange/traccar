@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,19 +15,23 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BitUtil;
+import org.traccar.helper.DateBuilder;
+import org.traccar.helper.Parser;
+import org.traccar.helper.PatternBuilder;
+import org.traccar.helper.UnitsConverter;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.BitUtil;
-import org.traccar.helper.DateBuilder;
-import org.traccar.helper.Parser;
-import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
 
@@ -45,7 +49,7 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
             .compile();
 
     private static final Pattern PATTERN_ITEM = new PatternBuilder()
-            .number("(x+)?,")                    // event
+            .number("(x+)?,").optional()         // event
             .groupBegin()
             .text("SYS:")
             .expression("[^,]*,")
@@ -64,7 +68,15 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
             .expression(",?")
             .groupEnd()
             .groupBegin()
-            .text("GSM:").expression("[^,]*,?")
+            .text("GSM:")
+            .number("d*;")                       // registration
+            .number("d*;")                       // gsm signal
+            .number("(d+);")                     // mcc
+            .number("(d+);")                     // mnc
+            .number("(x+);")                     // lac
+            .number("(x+);")                     // cid
+            .number("(-d+)")                     // rssi
+            .expression("[^,]*,?")
             .groupEnd("?")
             .groupBegin()
             .text("COT:")
@@ -74,19 +86,20 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
             .groupEnd("?")
             .groupBegin()
             .text("ADC:")
-            .number("(d+.d+);")                  // power
-            .number("(d+.d+),?")                 // battery
+            .number("(d+.d+)")                   // power
+            .number("(?:;(d+.d+))?,?")           // battery
             .groupEnd("?")
             .groupBegin()
             .text("DTT:")
             .number("(x+);")                     // status
-            .expression("[^;]*;")
-            .number("x+;")                       // geo-fence 0-119
-            .number("x+;")                       // geo-fence 120-155
-            .number("x+,?")                      // event status
+            .number("(x+)?;")                    // io
+            .number("(x+);")                     // geo-fence 0-119
+            .number("(x+);")                     // geo-fence 120-155
+            .number("(x+)")                      // event status
+            .number("(?:;(x+))?,?")              // packet type
             .groupEnd("?")
             .groupBegin()
-            .text("ETD:").expression("[^,]*,?")
+            .text("ETD:").expression("([^,]+),?")
             .groupEnd("?")
             .groupBegin()
             .text("OBD:")
@@ -98,39 +111,81 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
             .groupBegin()
             .text("TRU:").expression("[^,]*,?")
             .groupEnd("?")
+            .groupBegin()
+            .text("TAG:").expression("([^,]+),?")
+            .groupEnd("?")
             .compile();
 
-    private Position decodePosition(Parser parser, Date time) {
+    private static final Pattern PATTERN_OLD = new PatternBuilder()
+            .text("*GS")                         // header
+            .number("d+,")                       // protocol version
+            .number("(d+),")                     // imei
+            .text("GPS:")
+            .number("(dd)(dd)(dd);")             // time
+            .number("d;").optional()             // fix type
+            .expression("([AV]);")               // validity
+            .number("([NS])(d+.d+);")            // latitude
+            .number("([EW])(d+.d+);")            // longitude
+            .number("(d+)?;")                    // speed
+            .number("(d+);")                     // course
+            .number("(d+.?d*)").optional()       // hdop
+            .number("(dd)(dd)(dd)")              // date
+            .any()
+            .compile();
+
+    private Position decodePosition(DeviceSession deviceSession, Parser parser, Date time) {
 
         Position position = new Position();
         position.setProtocol(getProtocolName());
-        position.setDeviceId(getDeviceId());
-        position.setTime(time);
+        position.setDeviceId(deviceSession.getDeviceId());
 
-        position.set(Event.KEY_EVENT, parser.next());
+        if (time != null) {
+            position.setTime(time);
+        }
+
+        position.set(Position.KEY_EVENT, parser.next());
 
         position.setValid(parser.next().equals("A"));
-        position.set(Event.KEY_SATELLITES, parser.next());
+        position.set(Position.KEY_SATELLITES, parser.next());
 
         position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.HEM_DEG));
         position.setLongitude(parser.nextCoordinate(Parser.CoordinateFormat.HEM_DEG));
-        position.setSpeed(parser.nextDouble());
+        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
         position.setCourse(parser.nextDouble());
         position.setAltitude(parser.nextDouble());
 
-        position.set(Event.KEY_HDOP, parser.next());
-        position.set(Event.KEY_ODOMETER, parser.next());
-        position.set(Event.KEY_POWER, parser.next());
-        position.set(Event.KEY_BATTERY, parser.next());
+        position.set(Position.KEY_HDOP, parser.next());
 
-        String status = parser.next();
-        if (status != null) {
-            position.set(Event.KEY_IGNITION, BitUtil.check(Integer.parseInt(status, 16), 13));
-            position.set(Event.KEY_STATUS, status);
+        if (parser.hasNext(5)) {
+            position.setNetwork(new Network(CellTower.from(
+                    parser.nextInt(), parser.nextInt(), parser.nextInt(16), parser.nextInt(16), parser.nextInt())));
+        }
+        if (parser.hasNext()) {
+            position.set(Position.KEY_ODOMETER, parser.nextInt());
+        }
+        position.set(Position.KEY_POWER, parser.next());
+        position.set(Position.KEY_BATTERY, parser.next());
+
+        if (parser.hasNext(6)) {
+            long status = parser.nextLong(16);
+            position.set(Position.KEY_IGNITION, BitUtil.check(status, 13));
+            position.set(Position.KEY_STATUS, status);
+            position.set("ioStatus", parser.next());
+            position.set(Position.KEY_GEOFENCE, parser.next() + parser.next());
+            position.set("eventStatus", parser.next());
+            position.set("packetType", parser.next());
+        }
+
+        if (parser.hasNext()) {
+            position.set("eventData", parser.next());
         }
 
         if (parser.hasNext()) {
             position.set("obd", parser.next());
+        }
+
+        if (parser.hasNext()) {
+            position.set("tagData", parser.next());
         }
 
         return position;
@@ -144,26 +199,63 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
             channel.write("1234");
         }
 
-        Parser parser = new Parser(PATTERN, (String) msg);
+        String sentence = (String) msg;
+        Pattern pattern = PATTERN;
+        if (sentence.startsWith("*GS02")) {
+            pattern = PATTERN_OLD;
+        }
+
+        Parser parser = new Parser(pattern, (String) msg);
         if (!parser.matches()) {
             return null;
         }
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
 
-        DateBuilder dateBuilder = new DateBuilder()
-                .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        if (pattern == PATTERN_OLD) {
 
-        List<Position> positions = new LinkedList<>();
-        Parser itemParser = new Parser(PATTERN_ITEM, parser.next());
-        while (itemParser.find()) {
-            positions.add(decodePosition(itemParser, dateBuilder.getDate()));
+            Position position = new Position();
+            position.setProtocol(getProtocolName());
+            position.setDeviceId(deviceSession.getDeviceId());
+
+            DateBuilder dateBuilder = new DateBuilder()
+                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+
+            position.setValid(parser.next().equals("A"));
+            position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.HEM_DEG));
+            position.setLongitude(parser.nextCoordinate(Parser.CoordinateFormat.HEM_DEG));
+            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
+            position.setCourse(parser.nextDouble());
+
+            position.set(Position.KEY_HDOP, parser.next());
+
+            dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
+            position.setTime(dateBuilder.getDate());
+
+            return position;
+
+        } else {
+
+            Date time = null;
+            if (parser.hasNext(6)) {
+                DateBuilder dateBuilder = new DateBuilder()
+                        .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt())
+                        .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
+                time = dateBuilder.getDate();
+            }
+
+            List<Position> positions = new LinkedList<>();
+            Parser itemParser = new Parser(PATTERN_ITEM, parser.next());
+            while (itemParser.find()) {
+                positions.add(decodePosition(deviceSession, itemParser, time));
+            }
+
+            return positions;
+
         }
-
-        return positions;
     }
 
 }

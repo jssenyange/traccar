@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.handler.codec.frame.FrameDecoder;
 import org.traccar.helper.StringFinder;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 public class MegastekFrameDecoder extends FrameDecoder {
 
@@ -34,15 +34,21 @@ public class MegastekFrameDecoder extends FrameDecoder {
         }
 
         if (Character.isDigit(buf.getByte(buf.readerIndex()))) {
-            int length = 4 + Integer.parseInt(buf.toString(buf.readerIndex(), 4, Charset.defaultCharset()));
+            int length = 4 + Integer.parseInt(buf.toString(buf.readerIndex(), 4, StandardCharsets.US_ASCII));
             if (buf.readableBytes() >= length) {
                 return buf.readBytes(length);
             }
         } else {
+            while (buf.getByte(buf.readerIndex()) == '\r' || buf.getByte(buf.readerIndex()) == '\n') {
+                buf.skipBytes(1);
+            }
             int delimiter = buf.indexOf(buf.readerIndex(), buf.writerIndex(), new StringFinder("\r\n"));
+            if (delimiter == -1) {
+                delimiter = buf.indexOf(buf.readerIndex(), buf.writerIndex(), (byte) '!');
+            }
             if (delimiter != -1) {
                 ChannelBuffer result = buf.readBytes(delimiter - buf.readerIndex());
-                buf.skipBytes(2);
+                buf.skipBytes(1);
                 return result;
             }
         }

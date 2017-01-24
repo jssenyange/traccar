@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,24 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.charset.Charset;
-import java.util.regex.Pattern;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BcdUtil;
 import org.traccar.helper.BitUtil;
-import org.traccar.helper.ChannelBufferTools;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.regex.Pattern;
 
 public class H02ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -38,7 +42,7 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
 
     private static double readCoordinate(ChannelBuffer buf, boolean lon) {
 
-        int degrees = ChannelBufferTools.readHexInteger(buf, 2);
+        int degrees = BcdUtil.readInteger(buf, 2);
         if (lon) {
             degrees = degrees * 10 + (buf.getUnsignedByte(buf.readerIndex()) >> 4);
         }
@@ -53,7 +57,7 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
             length = 5;
         }
 
-        result = result * 10 + ChannelBufferTools.readHexInteger(buf, length) * 0.0001;
+        result = result * 10 + BcdUtil.readInteger(buf, length) * 0.0001;
 
         result /= 60;
         result += degrees;
@@ -62,12 +66,35 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
     }
 
     private void processStatus(Position position, long status) {
-        if (!BitUtil.check(status, 0) || !BitUtil.check(status, 1)
-                || !BitUtil.check(status, 3) || !BitUtil.check(status, 4)) {
-            position.set(Event.KEY_ALARM, true);
+
+        if (!BitUtil.check(status, 0)) {
+            position.set(Position.KEY_ALARM, Position.ALARM_VIBRATION);
+        } else if (!BitUtil.check(status, 1)) {
+            position.set(Position.KEY_ALARM, Position.ALARM_SOS);
+        } else if (!BitUtil.check(status, 2)) {
+            position.set(Position.KEY_ALARM, Position.ALARM_OVERSPEED);
         }
-        position.set(Event.KEY_IGNITION, !BitUtil.check(status, 10));
-        position.set(Event.KEY_STATUS, status);
+
+        position.set(Position.KEY_IGNITION, !BitUtil.check(status, 10));
+        position.set(Position.KEY_STATUS, status);
+
+    }
+
+    private String decodeBattery(int value) {
+        switch (value) {
+            case 6:
+                return "100%";
+            case 5:
+                return "80%";
+            case 4:
+                return "60%";
+            case 3:
+                return "20%";
+            case 2:
+                return "10%";
+            default:
+                return null;
+        }
     }
 
     private Position decodeBinary(ChannelBuffer buf, Channel channel, SocketAddress remoteAddress) {
@@ -77,22 +104,24 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
 
         buf.readByte(); // marker
 
-        if (!identify(ChannelBuffers.hexDump(buf.readBytes(5)), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(
+                channel, remoteAddress, ChannelBuffers.hexDump(buf.readBytes(5)));
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         DateBuilder dateBuilder = new DateBuilder()
-                .setHour(ChannelBufferTools.readHexInteger(buf, 2))
-                .setMinute(ChannelBufferTools.readHexInteger(buf, 2))
-                .setSecond(ChannelBufferTools.readHexInteger(buf, 2))
-                .setDay(ChannelBufferTools.readHexInteger(buf, 2))
-                .setMonth(ChannelBufferTools.readHexInteger(buf, 2))
-                .setYear(ChannelBufferTools.readHexInteger(buf, 2));
+                .setHour(BcdUtil.readInteger(buf, 2))
+                .setMinute(BcdUtil.readInteger(buf, 2))
+                .setSecond(BcdUtil.readInteger(buf, 2))
+                .setDay(BcdUtil.readInteger(buf, 2))
+                .setMonth(BcdUtil.readInteger(buf, 2))
+                .setYear(BcdUtil.readInteger(buf, 2));
         position.setTime(dateBuilder.getDate());
 
         double latitude = readCoordinate(buf, false);
-        position.set(Event.KEY_POWER, buf.readByte());
+        position.set(Position.KEY_BATTERY, decodeBattery(buf.readUnsignedByte()));
         double longitude = readCoordinate(buf, true);
 
         int flags = buf.readUnsignedByte() & 0x0f;
@@ -107,8 +136,8 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
         position.setLatitude(latitude);
         position.setLongitude(longitude);
 
-        position.setSpeed(ChannelBufferTools.readHexInteger(buf, 3));
-        position.setCourse((buf.readUnsignedByte() & 0x0f) * 100.0 + ChannelBufferTools.readHexInteger(buf, 2));
+        position.setSpeed(BcdUtil.readInteger(buf, 3));
+        position.setCourse((buf.readUnsignedByte() & 0x0f) * 100.0 + BcdUtil.readInteger(buf, 2));
 
         processStatus(position, buf.readUnsignedInt());
         return position;
@@ -118,9 +147,9 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
             .text("*")
             .expression("..,")                   // manufacturer
             .number("(d+),")                     // imei
-            .number("Vd,")                       // version?
+            .expression("[^,]+,")
             .any()
-            .number("(dd)(dd)(dd),")             // time
+            .number("(?:(dd)(dd)(dd))?,")        // time
             .expression("([AV])?,")              // validity
             .groupBegin()
             .number("-(d+)-(d+.d+),")            // latitude
@@ -136,6 +165,29 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
             .expression("([EW]),")
             .number("(d+.?d*),")                 // speed
             .number("(d+.?d*)?,")                // course
+            .number("(?:(dd)(dd)(dd))?,")        // date (ddmmyy)
+            .any()
+            .number("(x{8})")                    // status
+            .groupBegin()
+            .number(", *(x+),")                  // mcc
+            .number(" *(x+),")                   // mnc
+            .number(" *(x+),")                   // lac
+            .number(" *(x+)")                    // cid
+            .groupEnd("?")
+            .any()
+            .compile();
+
+    private static final Pattern PATTERN_NBR = new PatternBuilder()
+            .text("*")
+            .expression("..,")                   // manufacturer
+            .number("(d+),")                     // imei
+            .text("NBR,")
+            .number("(dd)(dd)(dd),")             // time
+            .number("(d+),")                     // mcc
+            .number("(d+),")                     // mnc
+            .number("d+,")                       // gsm delay time
+            .number("d+,")                       // count
+            .number("((?:d+,d+,d+,)+)")          // cells
             .number("(dd)(dd)(dd),")             // date (ddmmyy)
             .number("(x{8})")                    // status
             .any()
@@ -148,16 +200,19 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
-
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
 
-        DateBuilder dateBuilder = new DateBuilder()
-                .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        Position position = new Position();
+        position.setProtocol(getProtocolName());
+        position.setDeviceId(deviceSession.getDeviceId());
+
+        DateBuilder dateBuilder = new DateBuilder();
+        if (parser.hasNext(3)) {
+            dateBuilder.setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        }
 
         if (parser.hasNext()) {
             position.setValid(parser.next().equals("A"));
@@ -180,8 +235,52 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
         position.setSpeed(parser.nextDouble());
         position.setCourse(parser.nextDouble());
 
+        if (parser.hasNext(3)) {
+            dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
+            position.setTime(dateBuilder.getDate());
+        } else {
+            position.setTime(new Date());
+        }
+
+        processStatus(position, parser.nextLong(16));
+
+        return position;
+    }
+
+    private Position decodeLbs(String sentence, Channel channel, SocketAddress remoteAddress) {
+
+        Parser parser = new Parser(PATTERN_NBR, sentence);
+        if (!parser.matches()) {
+            return null;
+        }
+
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
+            return null;
+        }
+
+        Position position = new Position();
+        position.setProtocol(getProtocolName());
+        position.setDeviceId(deviceSession.getDeviceId());
+
+        DateBuilder dateBuilder = new DateBuilder()
+                .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+
+        Network network = new Network();
+        int mcc = parser.nextInt();
+        int mnc = parser.nextInt();
+
+        String[] cells = parser.next().split(",");
+        for (int i = 0; i < cells.length / 3; i++) {
+            network.addCellTower(CellTower.from(mcc, mnc, Integer.parseInt(cells[i * 3]),
+                    Integer.parseInt(cells[i * 3 + 1]), Integer.parseInt(cells[i * 3 + 2])));
+        }
+
+        position.setNetwork(network);
+
         dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
-        position.setTime(dateBuilder.getDate());
+
+        getLastLocation(position, dateBuilder.getDate());
 
         processStatus(position, parser.nextLong(16));
 
@@ -193,17 +292,22 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
 
         ChannelBuffer buf = (ChannelBuffer) msg;
-        String marker = buf.toString(0, 1, Charset.defaultCharset());
+        String marker = buf.toString(0, 1, StandardCharsets.US_ASCII);
 
-        // handle X mode?
-
-        if (marker.equals("*")) {
-            return decodeText(buf.toString(Charset.defaultCharset()), channel, remoteAddress);
-        } else if (marker.equals("$")) {
-            return decodeBinary(buf, channel, remoteAddress);
+        switch (marker) {
+            case "*":
+                String sentence = buf.toString(StandardCharsets.US_ASCII);
+                if (sentence.contains(",NBR,")) {
+                    return decodeLbs(sentence, channel, remoteAddress);
+                } else {
+                    return decodeText(sentence, channel, remoteAddress);
+                }
+            case "$":
+                return decodeBinary(buf, channel, remoteAddress);
+            case "X":
+            default:
+                return null;
         }
-
-        return null;
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,13 @@ package org.traccar.protocol;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 public class AdmProtocolDecoder extends BaseProtocolDecoder {
@@ -48,20 +48,28 @@ public class AdmProtocolDecoder extends BaseProtocolDecoder {
 
         int type = buf.readUnsignedByte();
 
+        DeviceSession deviceSession;
         if (type == MSG_IMEI) {
-            identify(buf.toString(buf.readerIndex(), 15, Charset.defaultCharset()), channel, remoteAddress);
+            deviceSession = getDeviceSession(
+                    channel, remoteAddress, buf.readBytes(15).toString(StandardCharsets.US_ASCII));
+        } else {
+            deviceSession = getDeviceSession(channel, remoteAddress);
         }
 
-        if (hasDeviceId() && BitUtil.to(type, 2) == 0) {
+        if (deviceSession == null) {
+            return null;
+        }
+
+        if (BitUtil.to(type, 2) == 0) {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             buf.readUnsignedByte(); // firmware version
             buf.readUnsignedShort(); // index
 
-            position.set(Event.KEY_STATUS, buf.readUnsignedShort());
+            position.set(Position.KEY_STATUS, buf.readUnsignedShort());
 
             position.setValid(true);
             position.setLatitude(buf.readFloat());
@@ -73,13 +81,13 @@ public class AdmProtocolDecoder extends BaseProtocolDecoder {
 
             position.setAltitude(buf.readUnsignedShort());
 
-            position.set(Event.KEY_HDOP, buf.readUnsignedByte() * 0.1);
-            position.set(Event.KEY_SATELLITES, buf.readUnsignedByte() & 0x0f);
+            position.set(Position.KEY_HDOP, buf.readUnsignedByte() * 0.1);
+            position.set(Position.KEY_SATELLITES, buf.readUnsignedByte() & 0x0f);
 
             position.setTime(new Date(buf.readUnsignedInt() * 1000));
 
-            position.set(Event.KEY_POWER, buf.readUnsignedShort());
-            position.set(Event.KEY_BATTERY, buf.readUnsignedShort());
+            position.set(Position.KEY_POWER, buf.readUnsignedShort());
+            position.set(Position.KEY_BATTERY, buf.readUnsignedShort());
 
             if (BitUtil.check(type, 2)) {
                 buf.skipBytes(4);
@@ -102,7 +110,7 @@ public class AdmProtocolDecoder extends BaseProtocolDecoder {
             }
 
             if (BitUtil.check(type, 7)) {
-                position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+                position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
             }
 
             return position;

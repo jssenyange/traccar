@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 
 public class Gt02ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -32,8 +34,9 @@ public class Gt02ProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
-    public static final int MSG_HEARTBEAT = 0x1A;
     public static final int MSG_DATA = 0x10;
+    public static final int MSG_HEARTBEAT = 0x1A;
+    public static final int MSG_RESPONSE = 0x1C;
 
     @Override
     protected Object decode(
@@ -52,12 +55,13 @@ public class Gt02ProtocolDecoder extends BaseProtocolDecoder {
         int gsm = buf.readUnsignedByte();
 
         String imei = ChannelBuffers.hexDump(buf.readBytes(8)).substring(1);
-        if (!identify(imei, channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
-        position.set(Event.KEY_INDEX, buf.readUnsignedShort());
+        position.set(Position.KEY_INDEX, buf.readUnsignedShort());
 
         int type = buf.readUnsignedByte();
 
@@ -65,8 +69,8 @@ public class Gt02ProtocolDecoder extends BaseProtocolDecoder {
 
             getLastLocation(position, null);
 
-            position.set(Event.KEY_POWER, power);
-            position.set(Event.KEY_GSM, gsm);
+            position.set(Position.KEY_POWER, power);
+            position.set(Position.KEY_RSSI, gsm);
 
             if (channel != null) {
                 byte[] response = {0x54, 0x68, 0x1A, 0x0D, 0x0A};
@@ -99,6 +103,13 @@ public class Gt02ProtocolDecoder extends BaseProtocolDecoder {
 
             position.setLatitude(latitude);
             position.setLongitude(longitude);
+
+        } else if (type == MSG_RESPONSE) {
+
+            getLastLocation(position, null);
+
+            position.set(Position.KEY_RESULT,
+                    buf.readBytes(buf.readUnsignedByte()).toString(StandardCharsets.US_ASCII));
 
         } else {
 

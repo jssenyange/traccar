@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,9 +25,23 @@ import org.jboss.netty.handler.timeout.IdleStateAwareChannelHandler;
 import org.jboss.netty.handler.timeout.IdleStateEvent;
 import org.traccar.helper.Log;
 import org.traccar.model.Position;
+
+import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainEventHandler extends IdleStateAwareChannelHandler {
+
+    private final Set<String> connectionlessProtocols = new HashSet<>();
+
+    public MainEventHandler() {
+        String connectionlessProtocolList = Context.getConfig().getString("status.ignoreOffline");
+        if (connectionlessProtocolList != null) {
+            connectionlessProtocols.addAll(Arrays.asList(connectionlessProtocolList.split(",")));
+        }
+    }
 
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
@@ -35,20 +49,31 @@ public class MainEventHandler extends IdleStateAwareChannelHandler {
         if (e.getMessage() != null && e.getMessage() instanceof Position) {
 
             Position position = (Position) e.getMessage();
+            try {
+                Context.getDeviceManager().updateLatestPosition(position);
+            } catch (SQLException error) {
+                Log.warning(error);
+            }
+
+            String uniqueId = Context.getIdentityManager().getDeviceById(position.getDeviceId()).getUniqueId();
 
             // Log position
             StringBuilder s = new StringBuilder();
             s.append(formatChannel(e.getChannel())).append(" ");
-            s.append("id: ").append(position.getDeviceId()).append(", ");
+            s.append("id: ").append(uniqueId).append(", ");
             s.append("time: ").append(
                     new SimpleDateFormat(Log.DATE_FORMAT).format(position.getFixTime())).append(", ");
             s.append("lat: ").append(String.format("%.5f", position.getLatitude())).append(", ");
             s.append("lon: ").append(String.format("%.5f", position.getLongitude())).append(", ");
             s.append("speed: ").append(String.format("%.1f", position.getSpeed())).append(", ");
             s.append("course: ").append(String.format("%.1f", position.getCourse()));
+            Object cmdResult = position.getAttributes().get(Position.KEY_RESULT);
+            if (cmdResult != null) {
+                s.append(", result: ").append(cmdResult);
+            }
             Log.info(s.toString());
 
-            Context.getConnectionManager().updatePosition(position);
+            Context.getStatisticsManager().registerMessageStored(position.getDeviceId());
         }
     }
 
@@ -66,7 +91,9 @@ public class MainEventHandler extends IdleStateAwareChannelHandler {
         Log.info(formatChannel(e.getChannel()) + " disconnected");
         closeChannel(e.getChannel());
 
-        if (ctx.getPipeline().get("httpDecoder") == null) {
+        BaseProtocolDecoder protocolDecoder = (BaseProtocolDecoder) ctx.getPipeline().get("objectDecoder");
+        if (ctx.getPipeline().get("httpDecoder") == null
+                && !connectionlessProtocols.contains(protocolDecoder.getProtocolName())) {
             Context.getConnectionManager().removeActiveDevice(e.getChannel());
         }
     }
@@ -88,4 +115,5 @@ public class MainEventHandler extends IdleStateAwareChannelHandler {
             channel.close();
         }
     }
+
 }

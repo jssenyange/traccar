@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2013 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,6 @@
  */
 package org.traccar.helper;
 
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.OperatingSystemMXBean;
-import java.lang.management.RuntimeMXBean;
-import java.nio.charset.Charset;
-
 import org.apache.log4j.Appender;
 import org.apache.log4j.DailyRollingFileAppender;
 import org.apache.log4j.Layout;
@@ -34,6 +27,13 @@ import org.jboss.netty.logging.AbstractInternalLogger;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.traccar.Config;
+
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.OperatingSystemMXBean;
+import java.lang.management.RuntimeMXBean;
+import java.nio.charset.Charset;
 
 public final class Log {
 
@@ -48,6 +48,10 @@ public final class Log {
     private static final int STACK_LIMIT = 3;
 
     private static Logger logger = null;
+
+    public static String getAppVersion() {
+        return Log.class.getPackage().getImplementationVersion();
+    }
 
     public static void setupLogger(Config config) throws IOException {
 
@@ -72,7 +76,7 @@ public final class Log {
         });
 
         Log.logSystemInfo();
-        Log.info("Version: " + Log.class.getPackage().getImplementationVersion());
+        Log.info("Version: " + getAppVersion());
     }
 
     public static Logger getLogger() {

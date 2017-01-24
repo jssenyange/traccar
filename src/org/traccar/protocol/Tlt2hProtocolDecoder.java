@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,18 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.DateBuilder;
+import org.traccar.helper.Parser;
+import org.traccar.helper.PatternBuilder;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.DateBuilder;
-import org.traccar.helper.Parser;
-import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class Tlt2hProtocolDecoder extends BaseProtocolDecoder {
 
@@ -35,7 +36,7 @@ public class Tlt2hProtocolDecoder extends BaseProtocolDecoder {
 
     private static final Pattern PATTERN_HEADER = new PatternBuilder()
             .number("#(d+)#")                    // imei
-            .expression("[^#]+#")
+            .expression("[^#]*#")
             .number("d+#")
             .expression("([^#]+)#")              // status
             .number("d+")                        // number of records
@@ -50,8 +51,8 @@ public class Tlt2hProtocolDecoder extends BaseProtocolDecoder {
             .expression("([NS]),")
             .number("(d+)(dd.d+),")              // longitude
             .number("([EW]),")
-            .number("(d+.d+)?,")                 // speed
-            .number("(d+.d+)?,")                 // course
+            .number("(d+.?d*)?,")                // speed
+            .number("(d+.?d*)?,")                // course
             .number("(dd)(dd)(dd)")              // date (ddmmyy)
             .any()
             .compile();
@@ -69,7 +70,8 @@ public class Tlt2hProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
 
@@ -84,7 +86,7 @@ public class Tlt2hProtocolDecoder extends BaseProtocolDecoder {
 
                 Position position = new Position();
                 position.setProtocol(getProtocolName());
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
                 parser.next(); // base station info
 
@@ -101,7 +103,7 @@ public class Tlt2hProtocolDecoder extends BaseProtocolDecoder {
                 dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
                 position.setTime(dateBuilder.getDate());
 
-                position.set(Event.KEY_STATUS, status);
+                position.set(Position.KEY_STATUS, status);
 
                 positions.add(position);
             }

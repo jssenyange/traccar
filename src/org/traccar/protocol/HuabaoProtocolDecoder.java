@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,16 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BcdUtil;
 import org.traccar.helper.BitUtil;
-import org.traccar.helper.ChannelBufferTools;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.TimeZone;
 
 public class HuabaoProtocolDecoder extends BaseProtocolDecoder {
@@ -42,32 +42,58 @@ public class HuabaoProtocolDecoder extends BaseProtocolDecoder {
     public static final int MSG_TERMINAL_REGISTER_RESPONSE = 0x8100;
     public static final int MSG_TERMINAL_AUTH = 0x0102;
     public static final int MSG_LOCATION_REPORT = 0x0200;
+    public static final int MSG_OIL_CONTROL = 0XA006;
 
     public static final int RESULT_SUCCESS = 0;
 
-    private void sendResponse(
-            Channel channel, SocketAddress remoteAddress, int type, ChannelBuffer id, ChannelBuffer data) {
-        ChannelBuffer response = ChannelBuffers.dynamicBuffer();
-        response.writeByte(0x7e);
-        response.writeShort(type);
-        response.writeShort(data.readableBytes());
-        response.writeBytes(id);
-        response.writeShort(1); // index
-        response.writeBytes(data);
-        response.writeByte(Checksum.xor(response.toByteBuffer(1, response.readableBytes() - 1)));
-        response.writeByte(0x7e);
-        if (channel != null) {
-            channel.write(response, remoteAddress);
-        }
+    public static ChannelBuffer formatMessage(int type, ChannelBuffer id, ChannelBuffer data) {
+        ChannelBuffer buf = ChannelBuffers.dynamicBuffer();
+        buf.writeByte(0x7e);
+        buf.writeShort(type);
+        buf.writeShort(data.readableBytes());
+        buf.writeBytes(id);
+        buf.writeShort(1); // index
+        buf.writeBytes(data);
+        buf.writeByte(Checksum.xor(buf.toByteBuffer(1, buf.readableBytes() - 1)));
+        buf.writeByte(0x7e);
+        return buf;
     }
 
     private void sendGeneralResponse(
             Channel channel, SocketAddress remoteAddress, ChannelBuffer id, int type, int index) {
-        ChannelBuffer response = ChannelBuffers.dynamicBuffer();
-        response.writeShort(index);
-        response.writeShort(type);
-        response.writeByte(RESULT_SUCCESS);
-        sendResponse(channel, remoteAddress, MSG_GENERAL_RESPONSE, id, response);
+        if (channel != null) {
+            ChannelBuffer response = ChannelBuffers.dynamicBuffer();
+            response.writeShort(index);
+            response.writeShort(type);
+            response.writeByte(RESULT_SUCCESS);
+            channel.write(formatMessage(MSG_GENERAL_RESPONSE, id, response), remoteAddress);
+        }
+    }
+
+    private String decodeAlarm(long value) {
+        if (BitUtil.check(value, 0)) {
+            return Position.ALARM_SOS;
+        }
+        if (BitUtil.check(value, 1)) {
+            return Position.ALARM_OVERSPEED;
+        }
+        if (BitUtil.check(value, 5)) {
+            return Position.ALARM_GPS_ANTENNA_CUT;
+        }
+        if (BitUtil.check(value, 4) || BitUtil.check(value, 9)
+                || BitUtil.check(value, 10) || BitUtil.check(value, 11)) {
+            return Position.ALARM_FAULT;
+        }
+        if (BitUtil.check(value, 8)) {
+            return Position.ALARM_POWER_OFF;
+        }
+        if (BitUtil.check(value, 20)) {
+            return Position.ALARM_GEOFENCE;
+        }
+        if (BitUtil.check(value, 29)) {
+            return Position.ALARM_ACCIDENT;
+        }
+        return null;
     }
 
     @Override
@@ -82,17 +108,20 @@ public class HuabaoProtocolDecoder extends BaseProtocolDecoder {
         ChannelBuffer id = buf.readBytes(6); // phone number
         int index = buf.readUnsignedShort();
 
-        if (!identify(ChannelBuffers.hexDump(id), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, ChannelBuffers.hexDump(id));
+        if (deviceSession == null) {
             return null;
         }
 
         if (type == MSG_TERMINAL_REGISTER) {
 
-            ChannelBuffer response = ChannelBuffers.dynamicBuffer();
-            response.writeShort(index);
-            response.writeByte(RESULT_SUCCESS);
-            response.writeBytes("authentication".getBytes(Charset.defaultCharset()));
-            sendResponse(channel, remoteAddress, MSG_TERMINAL_REGISTER_RESPONSE, id, response);
+            if (channel != null) {
+                ChannelBuffer response = ChannelBuffers.dynamicBuffer();
+                response.writeShort(index);
+                response.writeByte(RESULT_SUCCESS);
+                response.writeBytes("authentication".getBytes(StandardCharsets.US_ASCII));
+                channel.write(formatMessage(MSG_TERMINAL_REGISTER_RESPONSE, id, response), remoteAddress);
+            }
 
         } else if (type == MSG_TERMINAL_AUTH) {
 
@@ -102,13 +131,13 @@ public class HuabaoProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
-            position.set(Event.KEY_ALARM, buf.readUnsignedInt());
+            position.set(Position.KEY_ALARM, decodeAlarm(buf.readUnsignedInt()));
 
             int flags = buf.readInt();
 
-            position.set(Event.KEY_IGNITION, BitUtil.check(flags, 0));
+            position.set(Position.KEY_IGNITION, BitUtil.check(flags, 0));
 
             position.setValid(BitUtil.check(flags, 1));
 
@@ -132,12 +161,12 @@ public class HuabaoProtocolDecoder extends BaseProtocolDecoder {
             position.setCourse(buf.readUnsignedShort());
 
             DateBuilder dateBuilder = new DateBuilder(TimeZone.getTimeZone("GMT+8"))
-                    .setYear(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMonth(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setDay(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setHour(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMinute(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setSecond(ChannelBufferTools.readHexInteger(buf, 2));
+                    .setYear(BcdUtil.readInteger(buf, 2))
+                    .setMonth(BcdUtil.readInteger(buf, 2))
+                    .setDay(BcdUtil.readInteger(buf, 2))
+                    .setHour(BcdUtil.readInteger(buf, 2))
+                    .setMinute(BcdUtil.readInteger(buf, 2))
+                    .setSecond(BcdUtil.readInteger(buf, 2));
             position.setTime(dateBuilder.getDate());
 
             // additional information

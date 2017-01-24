@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,16 @@
  */
 package org.traccar;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.handler.codec.string.StringEncoder;
 import org.traccar.database.ActiveDevice;
 import org.traccar.model.Command;
+
+import javax.xml.bind.DatatypeConverter;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 public abstract class BaseProtocol implements Protocol {
 
@@ -40,11 +45,26 @@ public abstract class BaseProtocol implements Protocol {
     }
 
     @Override
+    public Collection<String> getSupportedCommands() {
+        Set<String> commands = new HashSet<>(supportedCommands);
+        commands.add(Command.TYPE_CUSTOM);
+        return commands;
+    }
+
+    @Override
     public void sendCommand(ActiveDevice activeDevice, Command command) {
-        if (!supportedCommands.contains(command.getType())) {
+        if (supportedCommands.contains(command.getType())) {
+            activeDevice.write(command);
+        } else if (command.getType().equals(Command.TYPE_CUSTOM)) {
+            String data = command.getString(Command.KEY_DATA);
+            if (activeDevice.getChannel().getPipeline().get(StringEncoder.class) != null) {
+                activeDevice.write(data);
+            } else {
+                activeDevice.write(ChannelBuffers.wrappedBuffer(DatatypeConverter.parseHexBinary(data)));
+            }
+        } else {
             throw new RuntimeException("Command " + command.getType() + " is not supported in protocol " + getName());
         }
-        activeDevice.write(command);
     }
 
 }

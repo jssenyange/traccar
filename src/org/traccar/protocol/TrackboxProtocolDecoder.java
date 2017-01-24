@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class TrackboxProtocolDecoder extends BaseProtocolDecoder {
 
@@ -59,9 +60,14 @@ public class TrackboxProtocolDecoder extends BaseProtocolDecoder {
 
         if (sentence.startsWith("a=connect")) {
             String id = sentence.substring(sentence.indexOf("i=") + 2);
-            if (identify(id, channel, remoteAddress)) {
+            if (getDeviceSession(channel, remoteAddress, id) != null) {
                 sendResponse(channel);
             }
+            return null;
+        }
+
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -72,8 +78,8 @@ public class TrackboxProtocolDecoder extends BaseProtocolDecoder {
         sendResponse(channel);
 
         Position position = new Position();
-        position.setDeviceId(getDeviceId());
         position.setProtocol(getProtocolName());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         DateBuilder dateBuilder = new DateBuilder()
                 .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt(), parser.nextInt());
@@ -81,12 +87,12 @@ public class TrackboxProtocolDecoder extends BaseProtocolDecoder {
         position.setLatitude(parser.nextCoordinate());
         position.setLongitude(parser.nextCoordinate());
 
-        position.set(Event.KEY_HDOP, parser.next());
+        position.set(Position.KEY_HDOP, parser.next());
 
         position.setAltitude(parser.nextDouble());
 
         int fix = parser.nextInt();
-        position.set(Event.KEY_GPS, fix);
+        position.set(Position.KEY_GPS, fix);
         position.setValid(fix > 0);
 
         position.setCourse(parser.nextDouble());
@@ -95,7 +101,7 @@ public class TrackboxProtocolDecoder extends BaseProtocolDecoder {
         dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
         position.setTime(dateBuilder.getDate());
 
-        position.set(Event.KEY_SATELLITES, parser.next());
+        position.set(Position.KEY_SATELLITES, parser.next());
 
         return position;
     }

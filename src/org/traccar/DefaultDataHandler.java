@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,10 +25,6 @@ public class DefaultDataHandler extends BaseDataHandler {
 
         try {
             Context.getDataManager().addPosition(position);
-            Position lastPosition = Context.getConnectionManager().getLastPosition(position.getDeviceId());
-            if (lastPosition == null || position.getFixTime().compareTo(lastPosition.getFixTime()) > 0) {
-                Context.getDataManager().updateLatestPosition(position);
-            }
         } catch (Exception error) {
             Log.warning(error);
         }

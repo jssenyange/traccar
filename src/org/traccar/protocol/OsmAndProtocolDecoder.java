@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,29 +15,39 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.charset.Charset;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
 import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
+import org.joda.time.format.ISODateTimeFormat;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.model.Event;
+import org.traccar.DeviceSession;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
 
     public OsmAndProtocolDecoder(OsmAndProtocol protocol) {
         super(protocol);
+    }
+
+    private void sendResponse(Channel channel, HttpResponseStatus status) {
+        if (channel != null) {
+            HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
+            response.headers().add(HttpHeaders.Names.CONTENT_LENGTH, 0);
+            channel.write(response);
+        }
     }
 
     @Override
@@ -48,8 +58,7 @@ public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
         QueryStringDecoder decoder = new QueryStringDecoder(request.getUri());
         Map<String, List<String>> params = decoder.getParameters();
         if (params.isEmpty()) {
-            decoder = new QueryStringDecoder(
-                    request.getContent().toString(Charset.defaultCharset()), false);
+            decoder = new QueryStringDecoder(request.getContent().toString(StandardCharsets.US_ASCII), false);
             params = decoder.getParameters();
         }
 
@@ -62,10 +71,15 @@ public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
             switch (entry.getKey()) {
                 case "id":
                 case "deviceid":
-                    if (!identify(value, channel, remoteAddress)) {
+                    DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, value);
+                    if (deviceSession == null) {
+                        sendResponse(channel, HttpResponseStatus.BAD_REQUEST);
                         return null;
                     }
-                    position.setDeviceId(getDeviceId());
+                    position.setDeviceId(deviceSession.getDeviceId());
+                    break;
+                case "valid":
+                    position.setValid(Boolean.parseBoolean(value));
                     break;
                 case "timestamp":
                     try {
@@ -75,8 +89,13 @@ public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
                         }
                         position.setTime(new Date(timestamp));
                     } catch (NumberFormatException error) {
-                        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                        position.setTime(dateFormat.parse(value));
+                        if (value.contains("T")) {
+                            position.setTime(new Date(
+                                    ISODateTimeFormat.dateTimeParser().parseMillis(value)));
+                        } else {
+                            DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                            position.setTime(dateFormat.parse(value));
+                        }
                     }
                     break;
                 case "lat":
@@ -84,6 +103,11 @@ public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
                     break;
                 case "lon":
                     position.setLongitude(Double.parseDouble(value));
+                    break;
+                case "location":
+                    String[] location = value.split(",");
+                    position.setLatitude(Double.parseDouble(location[0]));
+                    position.setLongitude(Double.parseDouble(location[1]));
                     break;
                 case "speed":
                     position.setSpeed(Double.parseDouble(value));
@@ -95,11 +119,14 @@ public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
                 case "altitude":
                     position.setAltitude(Double.parseDouble(value));
                     break;
+                case "accuracy":
+                    position.setAccuracy(Double.parseDouble(value));
+                    break;
                 case "hdop":
-                    position.set(Event.KEY_HDOP, Double.parseDouble(value));
+                    position.set(Position.KEY_HDOP, Double.parseDouble(value));
                     break;
                 case "batt":
-                    position.set(Event.KEY_BATTERY, value);
+                    position.set(Position.KEY_BATTERY, value);
                     break;
                 default:
                     position.set(entry.getKey(), value);
@@ -111,13 +138,13 @@ public class OsmAndProtocolDecoder extends BaseProtocolDecoder {
             position.setTime(new Date());
         }
 
-        if (channel != null) {
-            HttpResponse response = new DefaultHttpResponse(
-                    HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-            channel.write(response).addListener(ChannelFutureListener.CLOSE);
+        if (position.getDeviceId() != 0) {
+            sendResponse(channel, HttpResponseStatus.OK);
+            return position;
+        } else {
+            sendResponse(channel, HttpResponseStatus.BAD_REQUEST);
+            return null;
         }
-
-        return position;
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.ChannelBufferTools;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BcdUtil;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
 
 public class KhdProtocolDecoder extends BaseProtocolDecoder {
 
@@ -73,24 +74,25 @@ public class KhdProtocolDecoder extends BaseProtocolDecoder {
             Position position = new Position();
             position.setProtocol(getProtocolName());
 
-            if (!identify(readSerialNumber(buf), channel, remoteAddress)) {
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, readSerialNumber(buf));
+            if (deviceSession == null) {
                 return null;
             }
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
-                    .setYear(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMonth(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setDay(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setHour(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMinute(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setSecond(ChannelBufferTools.readHexInteger(buf, 2));
+                    .setYear(BcdUtil.readInteger(buf, 2))
+                    .setMonth(BcdUtil.readInteger(buf, 2))
+                    .setDay(BcdUtil.readInteger(buf, 2))
+                    .setHour(BcdUtil.readInteger(buf, 2))
+                    .setMinute(BcdUtil.readInteger(buf, 2))
+                    .setSecond(BcdUtil.readInteger(buf, 2));
             position.setTime(dateBuilder.getDate());
 
-            position.setLatitude(ChannelBufferTools.readCoordinate(buf));
-            position.setLongitude(ChannelBufferTools.readCoordinate(buf));
-            position.setSpeed(UnitsConverter.knotsFromKph(ChannelBufferTools.readHexInteger(buf, 4)));
-            position.setCourse(ChannelBufferTools.readHexInteger(buf, 4));
+            position.setLatitude(BcdUtil.readCoordinate(buf));
+            position.setLongitude(BcdUtil.readCoordinate(buf));
+            position.setSpeed(UnitsConverter.knotsFromKph(BcdUtil.readInteger(buf, 4)));
+            position.setCourse(BcdUtil.readInteger(buf, 4));
 
             int flags = buf.readUnsignedByte();
             position.setValid((flags & 0x80) != 0);
@@ -101,7 +103,7 @@ public class KhdProtocolDecoder extends BaseProtocolDecoder {
 
             } else {
 
-                position.set(Event.KEY_ODOMETER, buf.readUnsignedMedium());
+                position.set(Position.KEY_ODOMETER, buf.readUnsignedMedium());
 
                 buf.skipBytes(4); // status
                 buf.skipBytes(8); // other

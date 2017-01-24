@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2014 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.Context;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class GlobalSatProtocolDecoder extends BaseProtocolDecoder {
 
@@ -84,10 +85,11 @@ public class GlobalSatProtocolDecoder extends BaseProtocolDecoder {
 
             switch (format.charAt(formatIndex)) {
                 case 'S':
-                    if (!identify(value, channel, remoteAddress)) {
+                    DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, value);
+                    if (deviceSession == null) {
                         return null;
                     }
-                    position.setDeviceId(getDeviceId());
+                    position.setDeviceId(deviceSession.getDeviceId());
                     break;
                 case 'A':
                     if (value.isEmpty()) {
@@ -163,7 +165,7 @@ public class GlobalSatProtocolDecoder extends BaseProtocolDecoder {
                     position.setCourse(Double.parseDouble(value));
                     break;
                 case 'N':
-                    position.set(Event.KEY_BATTERY, value);
+                    position.set(Position.KEY_BATTERY, value);
                     break;
                 default:
                     // Unsupported
@@ -203,10 +205,11 @@ public class GlobalSatProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         position.setValid(!parser.next().equals("1"));
 
@@ -221,8 +224,8 @@ public class GlobalSatProtocolDecoder extends BaseProtocolDecoder {
         position.setSpeed(parser.nextDouble());
         position.setCourse(parser.nextDouble());
 
-        position.set(Event.KEY_SATELLITES, parser.nextInt());
-        position.set(Event.KEY_HDOP, parser.next());
+        position.set(Position.KEY_SATELLITES, parser.nextInt());
+        position.set(Position.KEY_HDOP, parser.next());
 
         return position;
     }

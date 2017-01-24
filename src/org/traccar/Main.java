@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,16 @@
  */
 package org.traccar;
 
-import java.util.Locale;
 import org.traccar.helper.Log;
 
+import java.sql.SQLException;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.Locale;
+
 public final class Main {
+
+    private static final long CLEAN_PERIOD = 24 * 60 * 60 * 1000;
 
     private Main() {
     }
@@ -33,6 +39,17 @@ public final class Main {
         if (Context.getWebServer() != null) {
             Context.getWebServer().start();
         }
+
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    Context.getDataManager().clearPositionsHistory();
+                } catch (SQLException error) {
+                    Log.warning(error);
+                }
+            }
+        }, 0, CLEAN_PERIOD);
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override

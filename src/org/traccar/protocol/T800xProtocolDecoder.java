@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,13 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BcdUtil;
 import org.traccar.helper.BitUtil;
-import org.traccar.helper.ChannelBufferTools;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
@@ -35,10 +37,11 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
-    private static final int MSG_LOGIN = 0x01;
-    private static final int MSG_GPS = 0x02;
-    private static final int MSG_HEARTBEAT = 0x03;
-    private static final int MSG_ALARM = 0x04;
+    public static final int MSG_LOGIN = 0x01;
+    public static final int MSG_GPS = 0x02;
+    public static final int MSG_HEARTBEAT = 0x03;
+    public static final int MSG_ALARM = 0x04;
+    public static final int MSG_COMMAND = 0x81;
 
     private static float readSwappedFloat(ChannelBuffer buf) {
         byte[] bytes = new byte[4];
@@ -59,6 +62,25 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
+    private String decodeAlarm(short value) {
+        switch (value) {
+            case 3:
+                return Position.ALARM_SOS;
+            case 4:
+                return Position.ALARM_OVERSPEED;
+            case 5:
+                return Position.ALARM_GEOFENCE_ENTER;
+            case 6:
+                return Position.ALARM_GEOFENCE_EXIT;
+            case 8:
+            case 10:
+                return Position.ALARM_VIBRATION;
+            default:
+                break;
+        }
+        return null;
+    }
+
     @Override
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
@@ -71,7 +93,9 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
         int index = buf.readUnsignedShort();
         ChannelBuffer imei = buf.readBytes(8);
 
-        if (!identify(ChannelBuffers.hexDump(imei).substring(1), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(
+                channel, remoteAddress, ChannelBuffers.hexDump(imei).substring(1));
+        if (deviceSession == null) {
             return null;
         }
 
@@ -83,9 +107,9 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
-            position.set(Event.KEY_INDEX, index);
+            position.set(Position.KEY_INDEX, index);
 
             buf.readUnsignedShort(); // acc on interval
             buf.readUnsignedShort(); // acc off interval
@@ -102,31 +126,31 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
             buf.readUnsignedShort(); // drag alarm setting
 
             int io = buf.readUnsignedShort();
-            position.set(Event.KEY_IGNITION, BitUtil.check(io, 14));
+            position.set(Position.KEY_IGNITION, BitUtil.check(io, 14));
             position.set("ac", BitUtil.check(io, 13));
 
-            position.set(Event.PREFIX_ADC + 1, buf.readUnsignedShort());
-            position.set(Event.PREFIX_ADC + 2, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort());
 
-            position.set(Event.KEY_ALARM, buf.readUnsignedByte());
+            position.set(Position.KEY_ALARM, decodeAlarm(buf.readUnsignedByte()));
 
             buf.readUnsignedByte(); // reserved
 
-            position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+            position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
 
-            int battery = ChannelBufferTools.readHexInteger(buf, 2);
+            int battery = BcdUtil.readInteger(buf, 2);
             if (battery == 0) {
                 battery = 100;
             }
-            position.set(Event.KEY_BATTERY, battery);
+            position.set(Position.KEY_BATTERY, battery);
 
             DateBuilder dateBuilder = new DateBuilder()
-                    .setYear(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMonth(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setDay(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setHour(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMinute(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setSecond(ChannelBufferTools.readHexInteger(buf, 2));
+                    .setYear(BcdUtil.readInteger(buf, 2))
+                    .setMonth(BcdUtil.readInteger(buf, 2))
+                    .setDay(BcdUtil.readInteger(buf, 2))
+                    .setHour(BcdUtil.readInteger(buf, 2))
+                    .setMinute(BcdUtil.readInteger(buf, 2))
+                    .setSecond(BcdUtil.readInteger(buf, 2));
 
             if (BitUtil.check(locationStatus, 6)) {
 
@@ -136,7 +160,7 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
                 position.setLongitude(readSwappedFloat(buf));
                 position.setLatitude(readSwappedFloat(buf));
                 position.setSpeed(UnitsConverter.knotsFromKph(
-                        ChannelBufferTools.readHexInteger(buf, 4) * 0.1));
+                        BcdUtil.readInteger(buf, 4) * 0.1));
                 position.setCourse(buf.readUnsignedShort());
 
             } else {
@@ -147,10 +171,9 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
                 buf.readBytes(array);
                 ChannelBuffer swapped = ChannelBuffers.wrappedBuffer(ByteOrder.LITTLE_ENDIAN, array);
 
-                position.set(Event.KEY_MCC, swapped.readUnsignedShort());
-                position.set(Event.KEY_MNC, swapped.readUnsignedShort());
-                position.set(Event.KEY_LAC, swapped.readUnsignedShort());
-                position.set(Event.KEY_CID, swapped.readUnsignedShort());
+                position.setNetwork(new Network(CellTower.from(
+                        swapped.readUnsignedShort(), swapped.readUnsignedShort(),
+                        swapped.readUnsignedShort(), swapped.readUnsignedShort())));
 
                 // two more cell towers
 

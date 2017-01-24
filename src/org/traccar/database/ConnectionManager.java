@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,6 @@
  */
 package org.traccar.database;
 
-import java.net.SocketAddress;
-import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.util.Timeout;
 import org.jboss.netty.util.TimerTask;
@@ -35,30 +23,32 @@ import org.traccar.GlobalTimer;
 import org.traccar.Protocol;
 import org.traccar.helper.Log;
 import org.traccar.model.Device;
+import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public class ConnectionManager {
 
     private static final long DEFAULT_TIMEOUT = 600;
 
     private final long deviceTimeout;
+    private final boolean enableStatusEvents;
 
-    private final Map<Long, ActiveDevice> activeDevices = new HashMap<>();
-    private final Map<Long, Position> positions = new HashMap<>();
-    private final Map<Long, Set<UpdateListener>> listeners = new HashMap<>();
-    private final Map<Long, Timeout> timeouts = new HashMap<>();
+    private final Map<Long, ActiveDevice> activeDevices = new ConcurrentHashMap<>();
+    private final Map<Long, Set<UpdateListener>> listeners = new ConcurrentHashMap<>();
+    private final Map<Long, Timeout> timeouts = new ConcurrentHashMap<>();
 
-    public ConnectionManager(DataManager dataManager) {
+    public ConnectionManager() {
         deviceTimeout = Context.getConfig().getLong("status.timeout", DEFAULT_TIMEOUT) * 1000;
-        if (dataManager != null) {
-            try {
-                for (Position position : dataManager.getLatestPositions()) {
-                    positions.put(position.getDeviceId(), position);
-                }
-            } catch (SQLException error) {
-                Log.warning(error);
-            }
-        }
+        enableStatusEvents = Context.getConfig().getBoolean("event.statusHandler");
     }
 
     public void addActiveDevice(long deviceId, Protocol protocol, Channel channel, SocketAddress remoteAddress) {
@@ -79,20 +69,39 @@ public class ConnectionManager {
         return activeDevices.get(deviceId);
     }
 
-    public synchronized void updateDevice(final long deviceId, String status, Date time) {
+    public void updateDevice(final long deviceId, String status, Date time) {
         Device device = Context.getIdentityManager().getDeviceById(deviceId);
         if (device == null) {
             return;
         }
 
-        device.setStatus(status);
-        if (time != null) {
-            device.setLastUpdate(time);
+        if (enableStatusEvents && !status.equals(device.getStatus())) {
+            String eventType;
+            switch (status) {
+                case Device.STATUS_ONLINE:
+                    eventType = Event.TYPE_DEVICE_ONLINE;
+                    break;
+                case Device.STATUS_UNKNOWN:
+                    eventType = Event.TYPE_DEVICE_UNKNOWN;
+                    break;
+                default:
+                    eventType = Event.TYPE_DEVICE_OFFLINE;
+                    break;
+            }
+            Event event = new Event(eventType, deviceId);
+            if (Context.getNotificationManager() != null) {
+                Context.getNotificationManager().updateEvent(event, null);
+            }
         }
+        device.setStatus(status);
 
         Timeout timeout = timeouts.remove(deviceId);
         if (timeout != null) {
             timeout.cancel();
+        }
+
+        if (time != null) {
+            device.setLastUpdate(time);
         }
 
         if (status.equals(Device.STATUS_ONLINE)) {
@@ -107,75 +116,62 @@ public class ConnectionManager {
         }
 
         try {
-            Context.getDataManager().updateDeviceStatus(device);
+            Context.getDeviceManager().updateDeviceStatus(device);
         } catch (SQLException error) {
             Log.warning(error);
         }
 
-        if (listeners.containsKey(deviceId)) {
-            for (UpdateListener listener : listeners.get(deviceId)) {
-                listener.onUpdateDevice(device);
+        updateDevice(device);
+    }
+
+    public synchronized void updateDevice(Device device) {
+        for (long userId : Context.getPermissionsManager().getDeviceUsers(device.getId())) {
+            if (listeners.containsKey(userId)) {
+                for (UpdateListener listener : listeners.get(userId)) {
+                    listener.onUpdateDevice(device);
+                }
             }
         }
     }
 
     public synchronized void updatePosition(Position position) {
         long deviceId = position.getDeviceId();
-        positions.put(deviceId, position);
 
-        if (listeners.containsKey(deviceId)) {
-            for (UpdateListener listener : listeners.get(deviceId)) {
-                listener.onUpdatePosition(position);
+        for (long userId : Context.getPermissionsManager().getDeviceUsers(deviceId)) {
+            if (listeners.containsKey(userId)) {
+                for (UpdateListener listener : listeners.get(userId)) {
+                    listener.onUpdatePosition(position);
+                }
             }
         }
     }
 
-    public Position getLastPosition(long deviceId) {
-        return positions.get(deviceId);
-    }
-
-    public synchronized Collection<Position> getInitialState(Collection<Long> devices) {
-
-        List<Position> result = new LinkedList<>();
-
-        for (long device : devices) {
-            if (positions.containsKey(device)) {
-                result.add(positions.get(device));
+    public synchronized void updateEvent(long userId, Event event) {
+        if (listeners.containsKey(userId)) {
+            for (UpdateListener listener : listeners.get(userId)) {
+                listener.onUpdateEvent(event);
             }
         }
-
-        return result;
     }
 
     public interface UpdateListener {
         void onUpdateDevice(Device device);
         void onUpdatePosition(Position position);
+        void onUpdateEvent(Event event);
     }
 
-    public void addListener(Collection<Long> devices, UpdateListener listener) {
-        for (long deviceId : devices) {
-            addListener(deviceId, listener);
+    public synchronized void addListener(long userId, UpdateListener listener) {
+        if (!listeners.containsKey(userId)) {
+            listeners.put(userId, new HashSet<UpdateListener>());
         }
+        listeners.get(userId).add(listener);
     }
 
-    public synchronized void addListener(long deviceId, UpdateListener listener) {
-        if (!listeners.containsKey(deviceId)) {
-            listeners.put(deviceId, new HashSet<UpdateListener>());
+    public synchronized void removeListener(long userId, UpdateListener listener) {
+        if (!listeners.containsKey(userId)) {
+            listeners.put(userId, new HashSet<UpdateListener>());
         }
-        listeners.get(deviceId).add(listener);
-    }
-
-    public void removeListener(Collection<Long> devices, UpdateListener listener) {
-        for (long deviceId : devices) {
-            removeListener(deviceId, listener);
-        }
-    }
-
-    public synchronized void removeListener(long deviceId, UpdateListener listener) {
-        if (!listeners.containsKey(deviceId)) {
-            listeners.put(deviceId, new HashSet<UpdateListener>());
-        }
-        listeners.get(deviceId).remove(listener);
+        listeners.get(userId).remove(listener);
     }
 
 }

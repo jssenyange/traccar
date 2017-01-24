@@ -11,13 +11,43 @@ public class Tk103ProtocolDecoderTest extends ProtocolTest {
         Tk103ProtocolDecoder decoder = new Tk103ProtocolDecoder(new Tk103Protocol());
 
         verifyPosition(decoder, text(
-                "(013612345678BO012061830A2934.0133N10627.2544E040.0080331309.6200000000L000770AD"));
+                "(864768010869060,DW30,050117,A,5135.82713N,00001.17918E,0.089,154745,000.0,43.40,12)"));
+
+        verifyNotNull(decoder, text(
+                "(087073104337BZ00,740,000,3bf7,0425,3bf7,0bf5,3bf7,09e7,3bf7,cbad,3bf7,0dcf,3bf7,c7b2,01000000)"));
+
+        verifyNothing(decoder, text(
+                "(087073005534BP00HSO"));
+
+        verifyNothing(decoder, text(
+                "(027028258309BQ86,0,05550c21b10d1d0f431008bd114c0ea5078400010007a100423932,161117005322,01000001)"));
+
+        verifyNothing(decoder, text(
+                "(027028258309BQ86,0,05470c0eb20d040f4410022911360e92077e00010007a1004237c7,161117005232,01000001)"));
+
+        verifyPosition(decoder, text(
+                "(01602009983BR00160830V1855.7022S4817.8731W000.0002729000.0010000000L00000000)"));
+
+        verifyPosition(decoder, text(
+                "(088046338039BR00160727A3354.7768N03540.7258E000.0140832068.4700000000L00BEB0D4+017.7)"));
+
+        verifyPosition(decoder, text(
+                "(088046338039BP05000088046338039160727A3354.7768N03540.7258E000.0140309065.1000000000L00BEB0D4+017.3)"));
 
         verifyAttributes(decoder, text(
+                "(013632651491,ZC20,180716,144222,6,392,65535,255"));
+
+        verifyAttributes(decoder, text(
+                "(087072009461BR00000007V0000.0000N00000.0000E000.00014039900000000L00000000"));
+
+        verifyPosition(decoder, text(
+                "(013612345678BO012061830A2934.0133N10627.2544E040.0080331309.6200000000L000770AD"));
+
+        verifyNotNull(decoder, text(
                 "(088047194605BZ00,510,010,36e6,932c,43,36e6,766b,36,36e6,7668,32"));
 
         verifyAttributes(decoder, text(
-                "(013632651491,ZC20,040613,040137,6,42,112,0"));
+                "(013632651491,ZC20,040613,040137,6,421,112,0"));
 
         verifyAttributes(decoder, text(
                 "(864768010159785,ZC20,291015,030413,3,362,65535,255"));

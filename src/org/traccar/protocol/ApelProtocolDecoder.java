@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2014 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,21 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 
 public class ApelProtocolDecoder extends BaseProtocolDecoder {
 
@@ -110,7 +111,7 @@ public class ApelProtocolDecoder extends BaseProtocolDecoder {
             int length = buf.readUnsignedShort();
             buf.skipBytes(length);
             length = buf.readUnsignedShort();
-            identify(buf.readBytes(length).toString(Charset.defaultCharset()), channel, remoteAddress);
+            getDeviceSession(channel, remoteAddress, buf.readBytes(length).toString(StandardCharsets.US_ASCII));
 
         } else if (type == MSG_LAST_LOG_INDEX) {
 
@@ -120,8 +121,12 @@ public class ApelProtocolDecoder extends BaseProtocolDecoder {
                 requestArchive(channel);
             }
 
-        } else if (hasDeviceId()
-                && (type == MSG_CURRENT_GPS_DATA || type == MSG_STATE_FULL_INFO_T104 || type == MSG_LOG_RECORDS)) {
+        } else if (type == MSG_CURRENT_GPS_DATA || type == MSG_STATE_FULL_INFO_T104 || type == MSG_LOG_RECORDS) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
 
             List<Position> positions = new LinkedList<>();
 
@@ -133,13 +138,13 @@ public class ApelProtocolDecoder extends BaseProtocolDecoder {
             for (int j = 0; j < recordCount; j++) {
                 Position position = new Position();
                 position.setProtocol(getProtocolName());
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
                 int subtype = type;
                 if (type == MSG_LOG_RECORDS) {
-                    position.set(Event.KEY_ARCHIVE, true);
+                    position.set(Position.KEY_ARCHIVE, true);
                     lastIndex = buf.readUnsignedInt() + 1;
-                    position.set(Event.KEY_INDEX, lastIndex);
+                    position.set(Position.KEY_INDEX, lastIndex);
 
                     subtype = buf.readUnsignedShort();
                     if (subtype != MSG_CURRENT_GPS_DATA && subtype != MSG_STATE_FULL_INFO_T104) {
@@ -157,7 +162,7 @@ public class ApelProtocolDecoder extends BaseProtocolDecoder {
                     int speed = buf.readUnsignedByte();
                     position.setValid(speed != 255);
                     position.setSpeed(UnitsConverter.knotsFromKph(speed));
-                    position.set(Event.KEY_HDOP, buf.readByte());
+                    position.set(Position.KEY_HDOP, buf.readByte());
                 } else {
                     int speed = buf.readShort();
                     position.setValid(speed != -1);
@@ -169,20 +174,20 @@ public class ApelProtocolDecoder extends BaseProtocolDecoder {
 
                 if (subtype == MSG_STATE_FULL_INFO_T104) {
 
-                    position.set(Event.KEY_SATELLITES, buf.readUnsignedByte());
-                    position.set(Event.KEY_GSM, buf.readUnsignedByte());
-                    position.set(Event.KEY_EVENT, buf.readUnsignedShort());
-                    position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
-                    position.set(Event.KEY_INPUT, buf.readUnsignedByte());
-                    position.set(Event.KEY_OUTPUT, buf.readUnsignedByte());
+                    position.set(Position.KEY_SATELLITES, buf.readUnsignedByte());
+                    position.set(Position.KEY_RSSI, buf.readUnsignedByte());
+                    position.set(Position.KEY_EVENT, buf.readUnsignedShort());
+                    position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
+                    position.set(Position.KEY_INPUT, buf.readUnsignedByte());
+                    position.set(Position.KEY_OUTPUT, buf.readUnsignedByte());
 
                     for (int i = 1; i <= 8; i++) {
-                        position.set(Event.PREFIX_ADC + i, buf.readUnsignedShort());
+                        position.set(Position.PREFIX_ADC + i, buf.readUnsignedShort());
                     }
 
-                    position.set(Event.PREFIX_COUNT + 1, buf.readUnsignedInt());
-                    position.set(Event.PREFIX_COUNT + 2, buf.readUnsignedInt());
-                    position.set(Event.PREFIX_COUNT + 3, buf.readUnsignedInt());
+                    position.set(Position.PREFIX_COUNT + 1, buf.readUnsignedInt());
+                    position.set(Position.PREFIX_COUNT + 2, buf.readUnsignedInt());
+                    position.set(Position.PREFIX_COUNT + 3, buf.readUnsignedInt());
                 }
 
                 positions.add(position);

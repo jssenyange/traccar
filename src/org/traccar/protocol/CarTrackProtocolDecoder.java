@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 - 2015 Anton Tananaev (anton@traccar.org)
  * Copyright 2014 Rohit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,15 +16,16 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class CarTrackProtocolDecoder extends BaseProtocolDecoder {
 
@@ -67,10 +68,11 @@ public class CarTrackProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         position.set("command", parser.next());
 
@@ -86,7 +88,7 @@ public class CarTrackProtocolDecoder extends BaseProtocolDecoder {
         dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
         position.setTime(dateBuilder.getDate());
 
-        position.set(Event.PREFIX_IO + 1, parser.next());
+        position.set(Position.PREFIX_IO + 1, parser.next());
 
         String odometer = parser.next();
         odometer = odometer.replace(":", "A");
@@ -95,10 +97,10 @@ public class CarTrackProtocolDecoder extends BaseProtocolDecoder {
         odometer = odometer.replace("=", "D");
         odometer = odometer.replace(">", "E");
         odometer = odometer.replace("?", "F");
-        position.set(Event.KEY_ODOMETER, Integer.parseInt(odometer, 16));
+        position.set(Position.KEY_ODOMETER, Integer.parseInt(odometer, 16));
 
-        position.set(Event.KEY_ALARM, parser.next());
-        position.set(Event.PREFIX_ADC + 1, parser.next());
+        parser.next(); // there is no meaningful alarms
+        position.set(Position.PREFIX_ADC + 1, parser.next());
 
         return position;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2014 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,17 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.DateUtil;
+import org.traccar.helper.UnitsConverter;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -24,13 +33,6 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class TramigoProtocolDecoder extends BaseProtocolDecoder {
 
@@ -40,6 +42,8 @@ public class TramigoProtocolDecoder extends BaseProtocolDecoder {
 
     public static final int MSG_COMPACT = 0x0100;
     public static final int MSG_FULL = 0x00FE;
+
+    private static final String[] DIRECTIONS = new String[] {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
 
     @Override
     protected Object decode(
@@ -59,13 +63,14 @@ public class TramigoProtocolDecoder extends BaseProtocolDecoder {
 
         Position position = new Position();
         position.setProtocol(getProtocolName());
-        position.set(Event.KEY_INDEX, index);
+        position.set(Position.KEY_INDEX, index);
         position.setValid(true);
 
-        if (!identify(String.valueOf(id), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, String.valueOf(id));
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         if (protocol == 0x01 && (type == MSG_COMPACT || type == MSG_FULL)) {
 
@@ -87,7 +92,7 @@ public class TramigoProtocolDecoder extends BaseProtocolDecoder {
 
             buf.readUnsignedInt(); // distance
 
-            position.set(Event.KEY_BATTERY, buf.readUnsignedShort());
+            position.set(Position.KEY_BATTERY, buf.readUnsignedShort());
 
             buf.readUnsignedShort(); // battery charger status
 
@@ -100,10 +105,10 @@ public class TramigoProtocolDecoder extends BaseProtocolDecoder {
         } else if (protocol == 0x80) {
 
             if (channel != null) {
-                channel.write(ChannelBuffers.copiedBuffer("gprs,ack," + index, Charset.defaultCharset()));
+                channel.write(ChannelBuffers.copiedBuffer("gprs,ack," + index, StandardCharsets.US_ASCII));
             }
 
-            String sentence = buf.toString(Charset.defaultCharset());
+            String sentence = buf.toString(StandardCharsets.US_ASCII);
 
             Pattern pattern = Pattern.compile("(-?\\d+\\.\\d+), (-?\\d+\\.\\d+)");
             Matcher matcher = pattern.matcher(sentence);
@@ -116,8 +121,13 @@ public class TramigoProtocolDecoder extends BaseProtocolDecoder {
             pattern = Pattern.compile("([NSWE]{1,2}) with speed (\\d+) km/h");
             matcher = pattern.matcher(sentence);
             if (matcher.find()) {
+                for (int i = 0; i < DIRECTIONS.length; i++) {
+                    if (matcher.group(1).equals(DIRECTIONS[i])) {
+                        position.setCourse(i * 45.0);
+                        break;
+                    }
+                }
                 position.setSpeed(UnitsConverter.knotsFromKph(Double.parseDouble(matcher.group(2))));
-                position.setCourse(0); // matcher.group(1) for course
             }
 
             pattern = Pattern.compile("(\\d{1,2}:\\d{2} \\w{3} \\d{1,2})");
@@ -126,7 +136,14 @@ public class TramigoProtocolDecoder extends BaseProtocolDecoder {
                 return null;
             }
             DateFormat dateFormat = new SimpleDateFormat("HH:mm MMM d yyyy", Locale.ENGLISH);
-            position.setTime(dateFormat.parse(matcher.group(1) + " " + Calendar.getInstance().get(Calendar.YEAR)));
+            position.setTime(DateUtil.correctYear(
+                    dateFormat.parse(matcher.group(1) + " " + Calendar.getInstance().get(Calendar.YEAR))));
+
+            if (sentence.contains("Ignition on detected")) {
+                position.set(Position.KEY_IGNITION, true);
+            } else if (sentence.contains("Ignition off detected")) {
+                position.set(Position.KEY_IGNITION, false);
+            }
 
             return position;
 

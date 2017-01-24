@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,29 +16,17 @@
 package org.traccar.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.traccar.Context;
 
 import javax.ws.rs.ext.ContextResolver;
 import javax.ws.rs.ext.Provider;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
 
 @Provider
 public class ObjectMapperProvider implements ContextResolver<ObjectMapper> {
 
-    private ObjectMapper mapper = new ObjectMapper();
-
-    public ObjectMapperProvider() {
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-        mapper.setConfig(mapper.getSerializationConfig().with(dateFormat));
-        mapper.setConfig(mapper.getDeserializationConfig().with(dateFormat));
-    }
-
     @Override
     public ObjectMapper getContext(Class<?> type) {
-        return mapper;
+        return Context.getObjectMapper();
     }
 
 }

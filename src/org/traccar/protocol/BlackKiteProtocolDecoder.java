@@ -1,6 +1,6 @@
 /*
+ * Copyright 2013 - 2016 Anton Tananaev (anton@traccar.org)
  * Copyright 2015 Vijay Kumar (vijaykumar@zilogic.com)
- * Copyright 2013 - 2014 Anton Tananaev (anton.tananaev@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,22 +16,22 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BitUtil;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
 import java.nio.ByteOrder;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.BitUtil;
-import org.traccar.helper.Log;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class BlackKiteProtocolDecoder extends BaseProtocolDecoder {
 
@@ -96,9 +96,7 @@ public class BlackKiteProtocolDecoder extends BaseProtocolDecoder {
             switch (tag) {
 
                 case TAG_IMEI:
-                    String imei = buf.toString(buf.readerIndex(), 15, Charset.defaultCharset());
-                    buf.skipBytes(imei.length());
-                    identify(imei, channel, remoteAddress);
+                    getDeviceSession(channel, remoteAddress, buf.readBytes(15).toString(StandardCharsets.US_ASCII));
                     break;
 
                 case TAG_DATE:
@@ -123,39 +121,41 @@ public class BlackKiteProtocolDecoder extends BaseProtocolDecoder {
 
                 case TAG_STATUS:
                     int status = buf.readUnsignedShort();
-                    position.set(Event.KEY_IGNITION, BitUtil.check(status, 9));
-                    position.set(Event.KEY_ALARM, BitUtil.check(status, 15));
-                    position.set(Event.KEY_POWER, BitUtil.check(status, 2));
+                    position.set(Position.KEY_IGNITION, BitUtil.check(status, 9));
+                    if (BitUtil.check(status, 15)) {
+                        position.set(Position.KEY_ALARM, Position.ALARM_GENERAL);
+                    }
+                    position.set(Position.KEY_POWER, BitUtil.check(status, 2));
                     break;
 
                 case TAG_DIGITAL_INPUTS:
                     int input = buf.readUnsignedShort();
                     for (int i = 0; i < 16; i++) {
-                        position.set(Event.PREFIX_IO + (i + 1), BitUtil.check(input, i));
+                        position.set(Position.PREFIX_IO + (i + 1), BitUtil.check(input, i));
                     }
                     break;
 
                 case TAG_DIGITAL_OUTPUTS:
                     int output = buf.readUnsignedShort();
                     for (int i = 0; i < 16; i++) {
-                        position.set(Event.PREFIX_IO + (i + 17), BitUtil.check(output, i));
+                        position.set(Position.PREFIX_IO + (i + 17), BitUtil.check(output, i));
                     }
                     break;
 
                 case TAG_INPUT_VOLTAGE1:
-                    position.set(Event.PREFIX_ADC + 1, buf.readUnsignedShort() / 1000.0);
+                    position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort() / 1000.0);
                     break;
 
                 case TAG_INPUT_VOLTAGE2:
-                    position.set(Event.PREFIX_ADC + 2, buf.readUnsignedShort() / 1000.0);
+                    position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort() / 1000.0);
                     break;
 
                 case TAG_INPUT_VOLTAGE3:
-                    position.set(Event.PREFIX_ADC + 3, buf.readUnsignedShort() / 1000.0);
+                    position.set(Position.PREFIX_ADC + 3, buf.readUnsignedShort() / 1000.0);
                     break;
 
                 case TAG_INPUT_VOLTAGE4:
-                    position.set(Event.PREFIX_ADC + 4, buf.readUnsignedShort() / 1000.0);
+                    position.set(Position.PREFIX_ADC + 4, buf.readUnsignedShort() / 1000.0);
                     break;
 
                 case TAG_XT1:
@@ -174,15 +174,15 @@ public class BlackKiteProtocolDecoder extends BaseProtocolDecoder {
             positions.add(position);
         }
 
-        if (!hasDeviceId()) {
-            Log.warning("Unknown device");
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+        if (deviceSession == null) {
             return null;
         }
 
         sendReply(channel, buf.readUnsignedShort());
 
         for (Position p : positions) {
-            p.setDeviceId(getDeviceId());
+            p.setDeviceId(deviceSession.getDeviceId());
         }
 
         if (positions.isEmpty()) {

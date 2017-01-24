@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2013 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class V680ProtocolDecoder extends BaseProtocolDecoder {
 
@@ -42,10 +43,8 @@ public class V680ProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+)#")                     // packet number
             .expression("([^#]+)?#?")            // gsm base station
             .expression("(?:[^#]+#)?")
-            .number("(d+)?(dd.d+),")             // longitude
-            .expression("([EW]),")
-            .number("(d+)?(dd.d+),")             // latitude
-            .expression("([NS]),")
+            .number("(d+.d+),([EW]),")           // longitude
+            .number("(d+.d+),([NS]),")           // latitude
             .number("(d+.d+),")                  // speed
             .number("(d+.?d*)?#")                // course
             .number("(dd)(dd)(dd)#")             // date
@@ -62,7 +61,7 @@ public class V680ProtocolDecoder extends BaseProtocolDecoder {
 
         if (sentence.length() == 16) {
 
-            identify(sentence.substring(1, sentence.length()), channel, remoteAddress);
+            getDeviceSession(channel, remoteAddress, sentence.substring(1, sentence.length()));
 
         } else {
 
@@ -74,23 +73,42 @@ public class V680ProtocolDecoder extends BaseProtocolDecoder {
             Position position = new Position();
             position.setProtocol(getProtocolName());
 
+            DeviceSession deviceSession;
             if (parser.hasNext()) {
-                identify(parser.next(), channel, remoteAddress);
+                deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+            } else {
+                deviceSession = getDeviceSession(channel, remoteAddress);
             }
-            if (!hasDeviceId()) {
+            if (deviceSession == null) {
                 return null;
             }
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             position.set("user", parser.next());
             position.setValid(parser.nextInt() > 0);
             position.set("password", parser.next());
-            position.set(Event.KEY_EVENT, parser.next());
+            position.set(Position.KEY_EVENT, parser.next());
             position.set("packet", parser.next());
-            position.set(Event.KEY_GSM, parser.next());
+            position.set(Position.KEY_RSSI, parser.next());
 
-            position.setLongitude(parser.nextCoordinate());
-            position.setLatitude(parser.nextCoordinate());
+            double lon = parser.nextDouble();
+            boolean west = parser.next().equals("W");
+            double lat = parser.nextDouble();
+            boolean south = parser.next().equals("S");
+
+            if (lat > 90 || lon > 180) {
+                int lonDegrees = (int) (lon * 0.01);
+                lon = (lon - lonDegrees * 100) / 60.0;
+                lon += lonDegrees;
+
+                int latDegrees = (int) (lat * 0.01);
+                lat = (lat - latDegrees * 100) / 60.0;
+                lat += latDegrees;
+            }
+
+            position.setLongitude(west ? -lon : lon);
+            position.setLatitude(south ? -lat : lat);
+
             position.setSpeed(parser.nextDouble());
             position.setCourse(parser.nextDouble());
 

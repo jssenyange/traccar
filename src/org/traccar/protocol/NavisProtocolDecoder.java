@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,33 +15,31 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.nio.ByteOrder;
-import java.nio.charset.Charset;
-import java.util.LinkedList;
-import java.util.List;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
-import org.traccar.helper.Log;
-import org.traccar.model.Event;
+import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedList;
+import java.util.List;
 
 public class NavisProtocolDecoder extends BaseProtocolDecoder {
 
     private String prefix;
     private long deviceUniqueId, serverId;
 
-    private static final Charset CHARSET = Charset.defaultCharset();
-
     public NavisProtocolDecoder(NavisProtocol protocol) {
         super(protocol);
     }
 
-    // Format types
     public static final int F10 = 0x01;
     public static final int F20 = 0x02;
     public static final int F30 = 0x03;
@@ -77,11 +75,11 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
-    private ParseResult parsePosition(ChannelBuffer buf) {
+    private ParseResult parsePosition(DeviceSession deviceSession, ChannelBuffer buf) {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         int format;
         if (buf.getUnsignedByte(buf.readerIndex()) == 0) {
@@ -92,38 +90,42 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
         position.set("format", format);
 
         long index = buf.readUnsignedInt();
-        position.set(Event.KEY_INDEX, index);
+        position.set(Position.KEY_INDEX, index);
 
-        position.set(Event.KEY_EVENT, buf.readUnsignedShort());
+        position.set(Position.KEY_EVENT, buf.readUnsignedShort());
 
         buf.skipBytes(6); // event time
 
-        position.set(Event.KEY_ALARM, buf.readUnsignedByte());
-        position.set(Event.KEY_STATUS, buf.readUnsignedByte());
-        position.set(Event.KEY_GSM, buf.readUnsignedByte());
+        short armedStatus = buf.readUnsignedByte();
+        position.set(Position.KEY_ARMED, armedStatus & 0x7F);
+        if (BitUtil.check(armedStatus, 7)) {
+            position.set(Position.KEY_ALARM, Position.ALARM_GENERAL);
+        }
+        position.set(Position.KEY_STATUS, buf.readUnsignedByte());
+        position.set(Position.KEY_RSSI, buf.readUnsignedByte());
 
         if (isFormat(format, F10, F20, F30)) {
-            position.set(Event.KEY_OUTPUT, buf.readUnsignedShort());
+            position.set(Position.KEY_OUTPUT, buf.readUnsignedShort());
         } else if (isFormat(format, F40, F50, F51, F52)) {
-            position.set(Event.KEY_OUTPUT, buf.readUnsignedByte());
+            position.set(Position.KEY_OUTPUT, buf.readUnsignedByte());
         }
 
         if (isFormat(format, F10, F20, F30, F40)) {
-            position.set(Event.KEY_INPUT, buf.readUnsignedShort());
+            position.set(Position.KEY_INPUT, buf.readUnsignedShort());
         } else if (isFormat(format, F50, F51, F52)) {
-            position.set(Event.KEY_INPUT, buf.readUnsignedByte());
+            position.set(Position.KEY_INPUT, buf.readUnsignedByte());
         }
 
-        position.set(Event.KEY_POWER, buf.readUnsignedShort() * 0.001);
-        position.set(Event.KEY_BATTERY, buf.readUnsignedShort());
+        position.set(Position.KEY_POWER, buf.readUnsignedShort() * 0.001);
+        position.set(Position.KEY_BATTERY, buf.readUnsignedShort());
 
         if (isFormat(format, F10, F20, F30)) {
-            position.set(Event.PREFIX_TEMP + 1, buf.readShort());
+            position.set(Position.PREFIX_TEMP + 1, buf.readShort());
         }
 
         if (isFormat(format, F10, F20, F50, F52)) {
-            position.set(Event.PREFIX_ADC + 1, buf.readUnsignedShort());
-            position.set(Event.PREFIX_ADC + 2, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort());
         }
 
         // Impulse counters
@@ -138,17 +140,16 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setTime(buf.readUnsignedByte(), buf.readUnsignedByte(), buf.readUnsignedByte())
-                    .setDateReverse(buf.readUnsignedByte(), buf.readUnsignedByte(), buf.readUnsignedByte());
+                    .setDateReverse(buf.readUnsignedByte(), buf.readUnsignedByte() + 1, buf.readUnsignedByte());
             position.setTime(dateBuilder.getDate());
 
             position.setLatitude(buf.readFloat() / Math.PI * 180);
             position.setLongitude(buf.readFloat() / Math.PI * 180);
-            position.setSpeed(buf.readFloat());
+            position.setSpeed(UnitsConverter.knotsFromKph(buf.readFloat()));
             position.setCourse(buf.readUnsignedShort());
 
-            position.set(Event.KEY_ODOMETER, buf.readFloat());
-
-            position.set("segment", buf.readFloat()); // last segment
+            position.set(Position.KEY_ODOMETER, buf.readFloat() * 1000);
+            position.set(Position.KEY_DISTANCE, buf.readFloat());
 
             // Segment times
             buf.readUnsignedShort();
@@ -179,11 +180,11 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
         return new ParseResult(index, position);
     }
 
-    private Object processSingle(Channel channel, ChannelBuffer buf) {
-        ParseResult result = parsePosition(buf);
+    private Object processSingle(DeviceSession deviceSession, Channel channel, ChannelBuffer buf) {
+        ParseResult result = parsePosition(deviceSession, buf);
 
         ChannelBuffer response = ChannelBuffers.dynamicBuffer(ByteOrder.LITTLE_ENDIAN, 8);
-        response.writeBytes(ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "*<T", CHARSET));
+        response.writeBytes(ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "*<T", StandardCharsets.US_ASCII));
         response.writeInt((int) result.getId());
         sendReply(channel, response);
 
@@ -194,19 +195,19 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
         return result.getPosition();
     }
 
-    private Object processArray(Channel channel, ChannelBuffer buf) {
+    private Object processArray(DeviceSession deviceSession, Channel channel, ChannelBuffer buf) {
         List<Position> positions = new LinkedList<>();
         int count = buf.readUnsignedByte();
 
         for (int i = 0; i < count; i++) {
-            Position position = parsePosition(buf).getPosition();
+            Position position = parsePosition(deviceSession, buf).getPosition();
             if (position.getFixTime() != null) {
                 positions.add(position);
             }
         }
 
         ChannelBuffer response = ChannelBuffers.dynamicBuffer(ByteOrder.LITTLE_ENDIAN, 8);
-        response.writeBytes(ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "*<A", CHARSET));
+        response.writeBytes(ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "*<A", StandardCharsets.US_ASCII));
         response.writeByte(count);
         sendReply(channel, response);
 
@@ -219,8 +220,8 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
 
     private Object processHandshake(Channel channel, SocketAddress remoteAddress, ChannelBuffer buf) {
         buf.readByte(); // semicolon symbol
-        if (identify(buf.toString(Charset.defaultCharset()), channel, remoteAddress)) {
-            sendReply(channel, ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "*<S", CHARSET));
+        if (getDeviceSession(channel, remoteAddress, buf.toString(StandardCharsets.US_ASCII)) != null) {
+            sendReply(channel, ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, "*<S", StandardCharsets.US_ASCII));
         }
         return null;
     }
@@ -235,7 +236,7 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
 
     private void sendReply(Channel channel, ChannelBuffer data) {
         ChannelBuffer header = ChannelBuffers.directBuffer(ByteOrder.LITTLE_ENDIAN, 16);
-        header.writeBytes(ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, prefix, CHARSET));
+        header.writeBytes(ChannelBuffers.copiedBuffer(ByteOrder.LITTLE_ENDIAN, prefix, StandardCharsets.US_ASCII));
         header.writeInt((int) deviceUniqueId);
         header.writeInt((int) serverId);
         header.writeShort(data.readableBytes());
@@ -253,7 +254,7 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
 
         ChannelBuffer buf = (ChannelBuffer) msg;
 
-        prefix = buf.toString(buf.readerIndex(), 4, CHARSET);
+        prefix = buf.toString(buf.readerIndex(), 4, StandardCharsets.US_ASCII);
         buf.skipBytes(prefix.length()); // prefix @NTC by default
         serverId = buf.readUnsignedInt();
         deviceUniqueId = buf.readUnsignedInt();
@@ -264,19 +265,20 @@ public class NavisProtocolDecoder extends BaseProtocolDecoder {
             return null; // keep alive message
         }
 
-        String type = buf.toString(buf.readerIndex(), 3, CHARSET);
+        String type = buf.toString(buf.readerIndex(), 3, StandardCharsets.US_ASCII);
         buf.skipBytes(type.length());
 
-        switch (type) {
-            case "*>T":
-                return processSingle(channel, buf);
-            case "*>A":
-                return processArray(channel, buf);
-            case "*>S":
-                return processHandshake(channel, remoteAddress, buf);
-            default:
-                Log.warning(new UnsupportedOperationException(type));
-                break;
+        if (type.equals("*>S")) {
+            return processHandshake(channel, remoteAddress, buf);
+        } else {
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession != null) {
+                if (type.equals("*>T")) {
+                    return processSingle(deviceSession, channel, buf);
+                } else if (type.equals("*>A")) {
+                    return processArray(deviceSession, channel, buf);
+                }
+            }
         }
 
         return null;

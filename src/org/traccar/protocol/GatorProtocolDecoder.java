@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2014 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,17 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.ChannelBufferTools;
+import org.traccar.DeviceSession;
+import org.traccar.helper.BcdUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
 
 public class GatorProtocolDecoder extends BaseProtocolDecoder {
 
@@ -54,6 +56,21 @@ public class GatorProtocolDecoder extends BaseProtocolDecoder {
         return String.format("%02d%02d%02d%02d%02d", d1, d2, d3, d4, d5);
     }
 
+    private void sendResponse(Channel channel, byte calibration) {
+        if (channel != null) {
+            ChannelBuffer response = ChannelBuffers.dynamicBuffer();
+            response.writeByte(0x24); response.writeByte(0x24); // header
+            response.writeByte(MSG_HEARTBEAT); // size
+            response.writeShort(5);
+            response.writeByte(calibration);
+            response.writeByte(0); // main order
+            response.writeByte(0); // slave order
+            response.writeByte(1); // calibration
+            response.writeByte(0x0D);
+            channel.write(response);
+        }
+    }
+
     @Override
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
@@ -68,40 +85,43 @@ public class GatorProtocolDecoder extends BaseProtocolDecoder {
                 buf.readUnsignedByte(), buf.readUnsignedByte(),
                 buf.readUnsignedByte(), buf.readUnsignedByte());
 
+        sendResponse(channel, buf.getByte(buf.writerIndex() - 2));
+
         if (type == MSG_POSITION_DATA || type == MSG_ROLLCALL_RESPONSE
                 || type == MSG_ALARM_DATA || type == MSG_BLIND_AREA) {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
 
-            if (!identify("1" + id, channel, remoteAddress, false) && !identify(id, channel, remoteAddress)) {
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, "1" + id, id);
+            if (deviceSession == null) {
                 return null;
             }
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
-                    .setYear(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMonth(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setDay(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setHour(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setMinute(ChannelBufferTools.readHexInteger(buf, 2))
-                    .setSecond(ChannelBufferTools.readHexInteger(buf, 2));
+                    .setYear(BcdUtil.readInteger(buf, 2))
+                    .setMonth(BcdUtil.readInteger(buf, 2))
+                    .setDay(BcdUtil.readInteger(buf, 2))
+                    .setHour(BcdUtil.readInteger(buf, 2))
+                    .setMinute(BcdUtil.readInteger(buf, 2))
+                    .setSecond(BcdUtil.readInteger(buf, 2));
             position.setTime(dateBuilder.getDate());
 
-            position.setLatitude(ChannelBufferTools.readCoordinate(buf));
-            position.setLongitude(ChannelBufferTools.readCoordinate(buf));
-            position.setSpeed(UnitsConverter.knotsFromKph(ChannelBufferTools.readHexInteger(buf, 4)));
-            position.setCourse(ChannelBufferTools.readHexInteger(buf, 4));
+            position.setLatitude(BcdUtil.readCoordinate(buf));
+            position.setLongitude(BcdUtil.readCoordinate(buf));
+            position.setSpeed(UnitsConverter.knotsFromKph(BcdUtil.readInteger(buf, 4)));
+            position.setCourse(BcdUtil.readInteger(buf, 4));
 
             int flags = buf.readUnsignedByte();
             position.setValid((flags & 0x80) != 0);
-            position.set(Event.KEY_SATELLITES, flags & 0x0f);
+            position.set(Position.KEY_SATELLITES, flags & 0x0f);
 
-            position.set(Event.KEY_STATUS, buf.readUnsignedByte());
+            position.set(Position.KEY_STATUS, buf.readUnsignedByte());
             position.set("key", buf.readUnsignedByte());
             position.set("oil", buf.readUnsignedShort() / 10.0);
-            position.set(Event.KEY_POWER, buf.readUnsignedByte() + buf.readUnsignedByte() / 100.0);
-            position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+            position.set(Position.KEY_POWER, buf.readUnsignedByte() + buf.readUnsignedByte() / 100.0);
+            position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
 
             return position;
         }

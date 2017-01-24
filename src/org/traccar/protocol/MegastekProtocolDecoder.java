@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,18 @@
  */
 package org.traccar.protocol;
 
-import java.net.SocketAddress;
-import java.util.regex.Pattern;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
+
+import java.net.SocketAddress;
+import java.util.regex.Pattern;
 
 public class MegastekProtocolDecoder extends BaseProtocolDecoder {
 
@@ -49,7 +52,7 @@ public class MegastekProtocolDecoder extends BaseProtocolDecoder {
             .number("imei:(d+),")                // imei
             .number("(d+/?d*)?,")                // satellites
             .number("(d+.d+)?,")                 // altitude
-            .number("Battery=(d+)%,,")           // battery
+            .number("Battery=(d+)%,,?")          // battery
             .number("(d)?,")                     // charger
             .number("(d+)?,")                    // mcc
             .number("(d+)?,")                    // mnc
@@ -155,37 +158,37 @@ public class MegastekProtocolDecoder extends BaseProtocolDecoder {
             Parser parser = new Parser(PATTERN_SIMPLE, status);
             if (parser.matches()) {
 
-                position.set(Event.KEY_ALARM, parser.next());
+                position.set(Position.KEY_ALARM, decodeAlarm(parser.next()));
 
-                if (!identify(parser.next(), channel, remoteAddress, false) && !identify(id, channel, remoteAddress)) {
+                DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next(), id);
+                if (deviceSession == null) {
                     return null;
                 }
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
-                position.set(Event.KEY_SATELLITES, parser.next());
+                position.set(Position.KEY_SATELLITES, parser.next());
 
                 position.setAltitude(parser.nextDouble());
 
-                position.set(Event.KEY_POWER, parser.nextDouble());
+                position.set(Position.KEY_POWER, parser.nextDouble());
 
                 String charger = parser.next();
                 if (charger != null) {
-                    position.set(Event.KEY_CHARGE, Integer.parseInt(charger) == 1);
+                    position.set(Position.KEY_CHARGE, Integer.parseInt(charger) == 1);
                 }
 
-                if (parser.hasNext(3)) {
-                    position.set(Event.KEY_MCC, parser.nextInt());
-                    position.set(Event.KEY_MNC, parser.nextInt());
-                    position.set(Event.KEY_LAC, parser.nextInt(16));
-                    position.set(Event.KEY_CID, parser.nextInt(16));
+                if (parser.hasNext(4)) {
+                    position.setNetwork(new Network(CellTower.from(
+                            parser.nextInt(), parser.nextInt(), parser.nextInt(16), parser.nextInt(16))));
                 }
 
             } else {
 
-                if (!identify(id, channel, remoteAddress)) {
+                DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, id);
+                if (deviceSession == null) {
                     return null;
                 }
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
             }
 
@@ -194,26 +197,24 @@ public class MegastekProtocolDecoder extends BaseProtocolDecoder {
             Parser parser = new Parser(PATTERN_ALTERNATIVE, status);
             if (parser.matches()) {
 
-                if (!identify(id, channel, remoteAddress)) {
+                DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, id);
+                if (deviceSession == null) {
                     return null;
                 }
-                position.setDeviceId(getDeviceId());
+                position.setDeviceId(deviceSession.getDeviceId());
 
-                position.set(Event.KEY_MCC, parser.nextInt());
-                position.set(Event.KEY_MNC, parser.nextInt());
-                position.set(Event.KEY_LAC, parser.nextInt(16));
-                position.set(Event.KEY_CID, parser.nextInt(16));
-                position.set(Event.KEY_GSM, parser.next());
+                position.setNetwork(new Network(CellTower.from(
+                        parser.nextInt(), parser.nextInt(), parser.nextInt(16), parser.nextInt(16), parser.nextInt())));
 
-                position.set(Event.KEY_BATTERY, Double.parseDouble(parser.next()));
+                position.set(Position.KEY_BATTERY, Double.parseDouble(parser.next()));
 
-                position.set(Event.KEY_FLAGS, parser.next());
-                position.set(Event.KEY_INPUT, parser.next());
-                position.set(Event.KEY_OUTPUT, parser.next());
-                position.set(Event.PREFIX_ADC + 1, parser.next());
-                position.set(Event.PREFIX_ADC + 2, parser.next());
-                position.set(Event.PREFIX_ADC + 3, parser.next());
-                position.set(Event.KEY_ALARM, parser.next());
+                position.set(Position.KEY_FLAGS, parser.next());
+                position.set(Position.KEY_INPUT, parser.next());
+                position.set(Position.KEY_OUTPUT, parser.next());
+                position.set(Position.PREFIX_ADC + 1, parser.next());
+                position.set(Position.PREFIX_ADC + 2, parser.next());
+                position.set(Position.PREFIX_ADC + 3, parser.next());
+                position.set(Position.KEY_ALARM, decodeAlarm(parser.next()));
 
             }
         }
@@ -237,29 +238,30 @@ public class MegastekProtocolDecoder extends BaseProtocolDecoder {
             .number("(dd),")                     // satellites
             .number("dd,")
             .number("(d+.d+),")                  // hdop
-            .number("(d+.d+),")                  // speed
-            .number("(d+.d+),")                  // course
-            .number("(d+.d+),")                  // altitude
-            .number("(d+.d+),")                  // odometer
+            .number("(d+.d+)?,")                 // speed
+            .number("(d+.d+)?,")                 // course
+            .number("(-?d+.d+),")                // altitude
+            .number("(d+.d+)?,")                 // odometer
             .number("(d+),")                     // mcc
             .number("(d+),")                     // mnc
             .number("(xxxx),")                   // lac
             .number("(xxxx),")                   // cid
             .number("(d+)?,")                    // gsm
-            .expression("([01]+),")              // input
-            .expression("([01]+),")              // output
-            .number("(d+),")                     // adc1
-            .number("(d+),")                     // adc2
-            .number("(d+),")                     // adc3
+            .expression("([01]+)?,")             // input
+            .expression("([01]+)?,")             // output
+            .number("(d+)?,")                    // adc1
+            .number("(d+)?,")                    // adc2
+            .number("(d+)?,")                    // adc3
             .groupBegin()
             .number("(-?d+.?d*)")                // temperature 1
             .or().text(" ")
-            .groupEnd().text(",")
+            .groupEnd("?").text(",")
             .groupBegin()
             .number("(-?d+.?d*)")                // temperature 2
             .or().text(" ")
-            .groupEnd().text(",")
-            .number("(d+)?,,")                   // rfid
+            .groupEnd("?").text(",")
+            .number("(d+)?,")                    // rfid
+            .number("d*,")
             .number("(d+)?,")                    // battery
             .expression("([^,]*);")              // alert
             .any()
@@ -275,13 +277,14 @@ public class MegastekProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
 
-        if (!identify(parser.next(), channel, remoteAddress)) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
             return null;
         }
-        position.setDeviceId(getDeviceId());
+        position.setDeviceId(deviceSession.getDeviceId());
 
         if (parser.next().equals("S")) {
-            position.set(Event.KEY_ARCHIVE, true);
+            position.set(Position.KEY_ARCHIVE, true);
         }
 
         DateBuilder dateBuilder = new DateBuilder()
@@ -293,48 +296,74 @@ public class MegastekProtocolDecoder extends BaseProtocolDecoder {
         position.setLatitude(parser.nextCoordinate());
         position.setLongitude(parser.nextCoordinate());
 
-        position.set(Event.KEY_SATELLITES, parser.nextInt());
-        position.set(Event.KEY_HDOP, parser.nextDouble());
+        position.set(Position.KEY_SATELLITES, parser.nextInt());
+        position.set(Position.KEY_HDOP, parser.nextDouble());
 
         position.setSpeed(parser.nextDouble());
         position.setCourse(parser.nextDouble());
         position.setAltitude(parser.nextDouble());
 
-        position.set(Event.KEY_ODOMETER, parser.nextDouble());
-        position.set(Event.KEY_MCC, parser.nextInt());
-        position.set(Event.KEY_MNC, parser.nextInt());
-        position.set(Event.KEY_LAC, parser.nextInt(16));
-        position.set(Event.KEY_CID, parser.nextInt(16));
-
-        String gsm = parser.next();
-        if (gsm != null) {
-            position.set(Event.KEY_GSM, Integer.parseInt(gsm));
+        if (parser.hasNext()) {
+            position.set(Position.KEY_ODOMETER, parser.nextDouble() * 1000);
         }
 
-        position.set(Event.KEY_INPUT, parser.nextInt(2));
-        position.set(Event.KEY_OUTPUT, parser.nextInt(2));
+        position.setNetwork(new Network(CellTower.from(
+                parser.nextInt(), parser.nextInt(), parser.nextInt(16), parser.nextInt(16), parser.nextInt())));
+
+        position.set(Position.KEY_INPUT, parser.nextInt(2));
+        position.set(Position.KEY_OUTPUT, parser.nextInt(2));
 
         for (int i = 1; i <= 3; i++) {
-            position.set(Event.PREFIX_ADC + i, parser.nextInt());
+            position.set(Position.PREFIX_ADC + i, parser.nextInt());
         }
 
         for (int i = 1; i <= 2; i++) {
             String adc = parser.next();
             if (adc != null) {
-                position.set(Event.PREFIX_TEMP + i, Double.parseDouble(adc));
+                position.set(Position.PREFIX_TEMP + i, Double.parseDouble(adc));
             }
         }
 
-        position.set(Event.KEY_RFID, parser.next());
+        position.set(Position.KEY_RFID, parser.next());
 
         String battery = parser.next();
         if (battery != null) {
-            position.set(Event.KEY_BATTERY, Integer.parseInt(battery));
+            position.set(Position.KEY_BATTERY, Integer.parseInt(battery));
         }
 
-        position.set(Event.KEY_ALARM, parser.next());
+        position.set(Position.KEY_ALARM, decodeAlarm(parser.next()));
 
         return position;
+    }
+
+    private String decodeAlarm(String value) {
+        switch (value) {
+            case "SOS":
+            case "Help":
+                return Position.ALARM_SOS;
+            case "Over Speed":
+            case "OverSpeed":
+                return Position.ALARM_OVERSPEED;
+            case "LowSpeed":
+                return Position.ALARM_LOW_SPEED;
+            case "Low Battery":
+            case "LowBattery":
+                return Position.ALARM_LOW_BATTERY;
+            case "VIB":
+                return Position.ALARM_VIBRATION;
+            case "Move in":
+            case "Geo in":
+            case "Geo1 in":
+            case "Geo2 in":
+                return Position.ALARM_GEOFENCE_ENTER;
+            case "Move out":
+            case "Geo out":
+            case "Geo1 out":
+            case "Geo2 out":
+                return Position.ALARM_GEOFENCE_EXIT;
+            default:
+                return null;
+        }
     }
 
     @Override

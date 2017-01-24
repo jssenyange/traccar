@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,12 @@
  */
 package org.traccar.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.traccar.helper.Hashing;
-import org.traccar.web.JsonIgnore;
 
-public class User {
+import java.util.Date;
 
-    private long id;
-
-    public long getId() {
-        return id;
-    }
-
-    public void setId(long id) {
-        this.id = id;
-    }
+public class User extends Extensible {
 
     private String name;
 
@@ -78,16 +70,6 @@ public class User {
 
     public void setMap(String map) {
         this.map = map;
-    }
-
-    private String language;
-
-    public String getLanguage() {
-        return language;
-    }
-
-    public void setLanguage(String language) {
-        this.language = language;
     }
 
     private String distanceUnit;
@@ -140,14 +122,96 @@ public class User {
         this.zoom = zoom;
     }
 
-    private String password;
+    private boolean twelveHourFormat;
+
+    public boolean getTwelveHourFormat() {
+        return twelveHourFormat;
+    }
+
+    public void setTwelveHourFormat(boolean twelveHourFormat) {
+        this.twelveHourFormat = twelveHourFormat;
+    }
+
+    private String coordinateFormat;
+
+    public String getCoordinateFormat() {
+        return coordinateFormat;
+    }
+
+    public void setCoordinateFormat(String coordinateFormat) {
+        this.coordinateFormat = coordinateFormat;
+    }
+
+    private boolean disabled;
+
+    public boolean getDisabled() {
+        return disabled;
+    }
+
+    public void setDisabled(boolean disabled) {
+        this.disabled = disabled;
+    }
+
+    private Date expirationTime;
+
+    public Date getExpirationTime() {
+        if (expirationTime != null) {
+            return new Date(expirationTime.getTime());
+        } else {
+            return null;
+        }
+    }
+
+    public void setExpirationTime(Date expirationTime) {
+        if (expirationTime != null) {
+            this.expirationTime = new Date(expirationTime.getTime());
+        } else {
+            this.expirationTime = null;
+        }
+    }
+
+    private int deviceLimit;
+
+    public int getDeviceLimit() {
+        return deviceLimit;
+    }
+
+    public void setDeviceLimit(int deviceLimit) {
+        this.deviceLimit = deviceLimit;
+    }
+
+    private int userLimit;
+
+    public int getUserLimit() {
+        return userLimit;
+    }
+
+    public void setUserLimit(int userLimit) {
+        this.userLimit = userLimit;
+    }
+
+    private String token;
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        if (token != null && !token.isEmpty()) {
+            if (!token.matches("^[a-zA-Z0-9]{16,}$")) {
+                throw new IllegalArgumentException("Illegal token");
+            }
+            this.token = token;
+        } else {
+            this.token = null;
+        }
+    }
 
     public String getPassword() {
-        return password;
+        return null;
     }
 
     public void setPassword(String password) {
-        this.password = password;
         if (password != null && !password.isEmpty()) {
             Hashing.HashingResult hashingResult = Hashing.createHash(password);
             hashedPassword = hashingResult.getHash();
@@ -157,7 +221,6 @@ public class User {
 
     private String hashedPassword;
 
-    @com.fasterxml.jackson.annotation.JsonIgnore
     @JsonIgnore
     public String getHashedPassword() {
         return hashedPassword;
@@ -169,7 +232,6 @@ public class User {
 
     private String salt;
 
-    @com.fasterxml.jackson.annotation.JsonIgnore
     @JsonIgnore
     public String getSalt() {
         return salt;

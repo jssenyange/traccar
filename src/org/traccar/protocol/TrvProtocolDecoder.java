@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@ package org.traccar.protocol;
 
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
-import org.traccar.model.Event;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
@@ -44,7 +46,7 @@ public class TrvProtocolDecoder extends BaseProtocolDecoder {
             .expression("([EW])")
             .number("(ddd.d)")                   // speed
             .number("(dd)(dd)(dd)")              // time
-            .number("(ddd.dd)")                  // course
+            .number("([d.]{6})")                 // course
             .number("(ddd)")                     // gsm
             .number("(ddd)")                     // satellites
             .number("(ddd)")                     // battery
@@ -58,6 +60,18 @@ public class TrvProtocolDecoder extends BaseProtocolDecoder {
             .any()
             .compile();
 
+    private static final Pattern PATTERN_HEATRBEAT = new PatternBuilder()
+            .text("TRV")
+            .text("CP01,")
+            .number("(ddd)")                     // gsm
+            .number("(ddd)")                     // gps
+            .number("(ddd)")                     // battery
+            .number("(d)")                       // acc
+            .number("(dd)")                      // arm status
+            .number("(dd)")                      // working mode
+            .any()
+            .compile();
+
     @Override
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
@@ -66,19 +80,43 @@ public class TrvProtocolDecoder extends BaseProtocolDecoder {
 
         String type = sentence.substring(3, 7);
         if (channel != null) {
-            channel.write("B" + type.substring(1)); // response
+            channel.write("TRV" + (char) (type.charAt(0) + 1) + type.substring(1) + "#"); // response
         }
 
         if (type.equals("AP00")) {
-            identify(sentence.substring(7), channel, remoteAddress);
+            getDeviceSession(channel, remoteAddress, sentence.substring(7));
             return null;
         }
 
-        if (!hasDeviceId()) {
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+        if (deviceSession == null) {
             return null;
         }
 
-        if (type.equals("AP01") || type.equals("AP10")) {
+        if (type.equals("CP01")) {
+
+            Parser parser = new Parser(PATTERN_HEATRBEAT, sentence);
+            if (!parser.matches()) {
+                return null;
+            }
+
+            Position position = new Position();
+            position.setProtocol(getProtocolName());
+            position.setDeviceId(deviceSession.getDeviceId());
+
+            getLastLocation(position, null);
+
+            position.set(Position.KEY_RSSI, parser.nextInt());
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
+            position.set(Position.KEY_BATTERY, parser.nextInt());
+            position.set(Position.KEY_IGNITION, parser.nextInt() != 0);
+
+            position.set("arm", parser.nextInt());
+            position.set("mode", parser.nextInt());
+
+            return position;
+
+        } else if (type.equals("AP01") || type.equals("AP10")) {
 
             Parser parser = new Parser(PATTERN, sentence);
             if (!parser.matches()) {
@@ -87,7 +125,7 @@ public class TrvProtocolDecoder extends BaseProtocolDecoder {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());
-            position.setDeviceId(getDeviceId());
+            position.setDeviceId(deviceSession.getDeviceId());
 
             DateBuilder dateBuilder = new DateBuilder()
                     .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt());
@@ -102,19 +140,17 @@ public class TrvProtocolDecoder extends BaseProtocolDecoder {
 
             position.setCourse(parser.nextDouble());
 
-            position.set(Event.KEY_GSM, parser.nextInt());
-            position.set(Event.KEY_SATELLITES, parser.nextInt());
-            position.set(Event.KEY_BATTERY, parser.nextInt());
+            position.set(Position.KEY_RSSI, parser.nextInt());
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
+            position.set(Position.KEY_BATTERY, parser.nextInt());
 
             int acc = parser.nextInt();
             if (acc != 0) {
-                position.set(Event.KEY_IGNITION, acc == 1);
+                position.set(Position.KEY_IGNITION, acc == 1);
             }
 
-            position.set(Event.KEY_MCC, parser.nextInt());
-            position.set(Event.KEY_MNC, parser.nextInt());
-            position.set(Event.KEY_LAC, parser.nextInt());
-            position.set(Event.KEY_CID, parser.nextInt());
+            position.setNetwork(new Network(CellTower.from(
+                    parser.nextInt(), parser.nextInt(), parser.nextInt(), parser.nextInt())));
 
             return position;
         }

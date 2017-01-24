@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@ package org.traccar.api.resource;
 
 import org.traccar.Context;
 import org.traccar.api.BaseResource;
+import org.traccar.model.Device;
+import org.traccar.model.DeviceTotalDistance;
 
-import java.sql.SQLException;
-import java.util.Collection;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -31,7 +31,9 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import org.traccar.model.Device;
+
+import java.sql.SQLException;
+import java.util.Collection;
 
 @Path("devices")
 @Produces(MediaType.APPLICATION_JSON)
@@ -42,32 +44,43 @@ public class DeviceResource extends BaseResource {
     public Collection<Device> get(
             @QueryParam("all") boolean all, @QueryParam("userId") long userId) throws SQLException {
         if (all) {
-            Context.getPermissionsManager().checkAdmin(getUserId());
-            return Context.getDataManager().getAllDevices();
+            if (Context.getPermissionsManager().isAdmin(getUserId())) {
+                return Context.getDeviceManager().getAllDevices();
+            } else {
+                Context.getPermissionsManager().checkManager(getUserId());
+                return Context.getDeviceManager().getManagedDevices(getUserId());
+            }
         } else {
             if (userId == 0) {
                 userId = getUserId();
             }
             Context.getPermissionsManager().checkUser(getUserId(), userId);
-            return Context.getDataManager().getDevices(userId);
+            return Context.getDeviceManager().getDevices(userId);
         }
     }
 
     @POST
     public Response add(Device entity) throws SQLException {
         Context.getPermissionsManager().checkReadonly(getUserId());
-        Context.getDataManager().addDevice(entity);
+        Context.getPermissionsManager().checkDeviceLimit(getUserId());
+        Context.getDeviceManager().addDevice(entity);
         Context.getDataManager().linkDevice(getUserId(), entity.getId());
-        Context.getPermissionsManager().refresh();
+        Context.getPermissionsManager().refreshPermissions();
+        if (Context.getGeofenceManager() != null) {
+            Context.getGeofenceManager().refresh();
+        }
         return Response.ok(entity).build();
     }
 
     @Path("{id}")
     @PUT
-    public Response update(@PathParam("id") long id, Device entity) throws SQLException {
+    public Response update(Device entity) throws SQLException {
         Context.getPermissionsManager().checkReadonly(getUserId());
-        Context.getPermissionsManager().checkDevice(getUserId(), id);
-        Context.getDataManager().updateDevice(entity);
+        Context.getPermissionsManager().checkDevice(getUserId(), entity.getId());
+        Context.getDeviceManager().updateDevice(entity);
+        if (Context.getGeofenceManager() != null) {
+            Context.getGeofenceManager().refresh();
+        }
         return Response.ok(entity).build();
     }
 
@@ -76,8 +89,20 @@ public class DeviceResource extends BaseResource {
     public Response remove(@PathParam("id") long id) throws SQLException {
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDevice(getUserId(), id);
-        Context.getDataManager().removeDevice(id);
-        Context.getPermissionsManager().refresh();
+        Context.getDeviceManager().removeDevice(id);
+        Context.getPermissionsManager().refreshPermissions();
+        if (Context.getGeofenceManager() != null) {
+            Context.getGeofenceManager().refresh();
+        }
+        Context.getAliasesManager().removeDevice(id);
+        return Response.noContent().build();
+    }
+
+    @Path("{id}/distance")
+    @PUT
+    public Response updateTotalDistance(DeviceTotalDistance entity) throws SQLException {
+        Context.getPermissionsManager().checkAdmin(getUserId());
+        Context.getDeviceManager().resetTotalDistance(entity);
         return Response.noContent().build();
     }
 

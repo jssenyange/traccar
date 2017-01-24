@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2015 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
  */
 package org.traccar;
 
-import java.util.Map;
 import org.traccar.model.Command;
+
+import java.util.Map;
 
 public abstract class StringProtocolEncoder extends BaseProtocolEncoder {
 

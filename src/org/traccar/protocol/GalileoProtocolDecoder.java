@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2015 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2013 - 2016 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,16 @@
  */
 package org.traccar.protocol;
 
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.Channel;
+import org.traccar.BaseProtocolDecoder;
+import org.traccar.DeviceSession;
+import org.traccar.model.Position;
+
 import java.net.SocketAddress;
 import java.nio.ByteOrder;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,13 +32,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.helper.Log;
-import org.traccar.model.Event;
-import org.traccar.model.Position;
 
 public class GalileoProtocolDecoder extends BaseProtocolDecoder {
 
@@ -50,6 +50,11 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
     private static final int TAG_ODOMETER = 0xd4;
     private static final int TAG_REFRIGERATOR = 0x5b;
     private static final int TAG_PRESSURE = 0x5c;
+    private static final int TAG_CAN = 0xc1;
+    private static final int TAG_ADC0 = 0x50;
+    private static final int TAG_ADC1 = 0x51;
+    private static final int TAG_ADC2 = 0x52;
+    private static final int TAG_ADC3 = 0x53;
 
     private static final Map<Integer, Integer> TAG_LENGTH_MAP = new HashMap<>();
 
@@ -63,21 +68,20 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
         };
         int[] l2 = {
             0x04, 0x10, 0x34, 0x40, 0x41, 0x42, 0x45, 0x46,
-            0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
-            0x58, 0x59, 0x60, 0x61, 0x62, 0x70, 0x71, 0x72,
-            0x73, 0x74, 0x75, 0x76, 0x77, 0xb0, 0xb1, 0xb2,
-            0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xd6,
-            0xd7, 0xd8, 0xd9, 0xda
+            0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x60, 0x61,
+            0x62, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76,
+            0x77, 0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6,
+            0xb7, 0xb8, 0xb9, 0xd6, 0xd7, 0xd8, 0xd9, 0xda
         };
         int[] l3 = {
             0x63, 0x64, 0x6f, 0x5d, 0x65, 0x66, 0x67, 0x68,
             0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e
         };
         int[] l4 = {
-            0x20, 0x33, 0x44, 0x90, 0xc0, 0xc1, 0xc2, 0xc3,
-            0xd3, 0xd4, 0xdb, 0xdc, 0xdd, 0xde, 0xdf, 0xf0,
-            0xf9, 0x5a, 0x47, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5,
-            0xf6, 0xf7, 0xf8
+            0x20, 0x33, 0x44, 0x90, 0xc0, 0xc2, 0xc3, 0xd3,
+            0xd4, 0xdb, 0xdc, 0xdd, 0xde, 0xdf, 0xf0, 0xf9,
+            0x5a, 0x47, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6,
+            0xf7, 0xf8
         };
         for (int i : l1) {
             TAG_LENGTH_MAP.put(i, 1);
@@ -142,9 +146,7 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
             switch (tag) {
 
                 case TAG_IMEI:
-                    String imei = buf.toString(buf.readerIndex(), 15, Charset.defaultCharset());
-                    buf.skipBytes(imei.length());
-                    identify(imei, channel, remoteAddress);
+                    getDeviceSession(channel, remoteAddress, buf.readBytes(15).toString(StandardCharsets.US_ASCII));
                     break;
 
                 case TAG_DATE:
@@ -168,19 +170,41 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
                     break;
 
                 case TAG_STATUS:
-                    position.set(Event.KEY_STATUS, buf.readUnsignedShort());
+                    position.set(Position.KEY_STATUS, buf.readUnsignedShort());
                     break;
 
                 case TAG_POWER:
-                    position.set(Event.KEY_POWER, buf.readUnsignedShort());
+                    position.set(Position.KEY_POWER, buf.readUnsignedShort());
                     break;
 
                 case TAG_BATTERY:
-                    position.set(Event.KEY_BATTERY, buf.readUnsignedShort());
+                    position.set(Position.KEY_BATTERY, buf.readUnsignedShort());
                     break;
 
                 case TAG_ODOMETER:
-                    position.set(Event.KEY_ODOMETER, buf.readUnsignedInt());
+                    position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
+                    break;
+
+                case TAG_CAN:
+                    position.set(Position.KEY_FUEL, buf.readUnsignedByte() * 0.4);
+                    position.set(Position.PREFIX_TEMP + 1, buf.readUnsignedByte() - 40);
+                    position.set(Position.KEY_RPM, buf.readUnsignedShort() * 0.125);
+                    break;
+
+                case TAG_ADC0:
+                    position.set(Position.PREFIX_ADC + 0, buf.readUnsignedShort());
+                    break;
+
+                case TAG_ADC1:
+                    position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort());
+                    break;
+
+                case TAG_ADC2:
+                    position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort());
+                    break;
+
+                case TAG_ADC3:
+                    position.set(Position.PREFIX_ADC + 3, buf.readUnsignedShort());
                     break;
 
                 default:
@@ -193,8 +217,8 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
             positions.add(position);
         }
 
-        if (!hasDeviceId()) {
-            Log.warning("Unknown device");
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+        if (deviceSession == null) {
             return null;
         }
 
@@ -202,7 +226,7 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
 
         for (Position p : positions) {
             p.setProtocol(getProtocolName());
-            p.setDeviceId(getDeviceId());
+            p.setDeviceId(deviceSession.getDeviceId());
         }
 
         if (positions.isEmpty()) {
