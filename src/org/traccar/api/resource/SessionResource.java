@@ -51,34 +51,6 @@ public class SessionResource extends BaseResource {
     @GET
     public User get(@QueryParam("token") String token) throws SQLException {
         Long userId = (Long) request.getSession().getAttribute(USER_ID_KEY);
-        if (userId == null) {
-            Cookie[] cookies = request.getCookies();
-            String email = null, password = null;
-            if (cookies != null) {
-                for (int i = 0; i < cookies.length; i++) {
-                    if (cookies[i].getName().equals(USER_COOKIE_KEY)) {
-                        email = cookies[i].getValue();
-                    }
-                    if (cookies[i].getName().equals(PASS_COOKIE_KEY)) {
-                        password = cookies[i].getValue();
-                    }
-                }
-            }
-            if (email != null && password != null) {
-                User user = Context.getPermissionsManager().login(email, password);
-                if (user != null) {
-                    userId = user.getId();
-                    request.getSession().setAttribute(USER_ID_KEY, userId);
-                }
-            } else if (token != null) {
-                User user = Context.getPermissionsManager().getUserByToken(token);
-                if (user != null) {
-                    userId = user.getId();
-                    request.getSession().setAttribute(USER_ID_KEY, userId);
-                }
-            }
-        }
-
         if (userId != null) {
             Context.getPermissionsManager().checkUserEnabled(userId);
             return Context.getPermissionsManager().getUser(userId);
