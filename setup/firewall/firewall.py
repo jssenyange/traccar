@@ -69,7 +69,7 @@ def parse_ip_blocks_files():
 
 def write_tables_header(save_file_object, sh_file_object, protocol_ports):
     save_file_object.write("*filter\n:"+iptables_custom_chain_name+" - [0:0]\n")    
-    sh_file_object.write("iptables -N"+iptables_custom_chain_name+"\n")
+    sh_file_object.write("iptables -N "+iptables_custom_chain_name+"\n")
     protocol_rules_count = (len(protocol_ports)/15)+1 # we divide by 15 since a rule can only have a maximum of 15 ports specified
     protocol_rule_index=1
     ports = protocol_ports.values()
@@ -105,13 +105,13 @@ def generate_iptables_rules():
                                 ipblock_save.write(rule.format("",iptables_custom_chain_name,network_ip.strip()));
                                 ipblock_sh.write(rule.format("iptables ",iptables_custom_chain_name,network_ip.strip()));
                             # Add a drop rule
-                            rule="{0}-A {1} -j DROP\n"         
-                            ipblock_save.write(rule.format("",iptables_custom_chain_name));
-                            ipblock_sh.write(rule.format("iptables ",iptables_custom_chain_name));
+                            rule="{0}-A {1} -j DROP\n{2}"
+                            ipblock_save.write(rule.format("",iptables_custom_chain_name,"COMMIT\n"));
+                            ipblock_sh.write(rule.format("iptables ",iptables_custom_chain_name,""));
             # Add a drop rule
-            rule="{0}-A {1} -j DROP\n"         
-            iptables_save.write(rule.format("",iptables_custom_chain_name));
-            iptables_sh.write(rule.format("iptables ",iptables_custom_chain_name));
+            rule="{0}-A {1} -j DROP\n{2}"
+            iptables_save.write(rule.format("",iptables_custom_chain_name,"COMMIT\n"));
+            iptables_sh.write(rule.format("iptables ",iptables_custom_chain_name,""));
 
 def get_arguement_parser():
     import argparse
