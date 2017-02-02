@@ -20,7 +20,6 @@ import org.traccar.api.BaseResource;
 import org.traccar.model.User;
 
 import javax.annotation.security.PermitAll;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -41,8 +40,6 @@ import java.sql.SQLException;
 public class SessionResource extends BaseResource {
 
     public static final String USER_ID_KEY = "userId";
-    public static final String USER_COOKIE_KEY = "user";
-    public static final String PASS_COOKIE_KEY = "password";
 
     @javax.ws.rs.core.Context
     private HttpServletRequest request;
