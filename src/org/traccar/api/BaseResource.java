@@ -29,4 +29,18 @@ public class BaseResource {
         }
         return 0;
     }
+
+    protected final boolean isRememberMeLogin(){
+        UserPrincipal principal = (UserPrincipal) securityContext.getUserPrincipal();
+        if (principal != null) {
+            return principal.getIsRememberMeLogin();
+        }
+        return false;
+    }
+
+    protected final void checkRememberMeLogin(){
+        if(isRememberMeLogin()){
+            throw new SecurityException("Account is readonly due to a remembered login. Log-out and Log-in again to perform the action");
+        }
+    }
 }

@@ -35,6 +35,7 @@ public class GeofencePermissionResource extends BaseResource {
 
     @POST
     public Response add(GeofencePermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkGeofence(getUserId(), entity.getGeofenceId());
@@ -45,6 +46,7 @@ public class GeofencePermissionResource extends BaseResource {
 
     @DELETE
     public Response remove(GeofencePermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkGeofence(getUserId(), entity.getGeofenceId());

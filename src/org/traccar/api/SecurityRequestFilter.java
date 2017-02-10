@@ -70,7 +70,7 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
         SecurityContext securityContext = null;
 
         try {
-
+            boolean isRememberMeLogin = false;
             String authHeader = requestContext.getHeaderString(AUTHORIZATION_HEADER);
             if (authHeader != null) {
 
@@ -79,7 +79,7 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
                     User user = Context.getPermissionsManager().login(auth[0], auth[1]);
                     if (user != null) {
                         Context.getStatisticsManager().registerRequest(user.getId());
-                        securityContext = new UserSecurityContext(new UserPrincipal(user.getId()));
+                        securityContext = new UserSecurityContext(new UserPrincipal(user.getId(),isRememberMeLogin));
                     }
                 } catch (SQLException e) {
                     throw new WebApplicationException(e);
@@ -92,6 +92,7 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
                     try {
                         // Log-in using the persistent cookie if it exists. This avoids errors when server is restarted
                         userId = SessionResource.rememberMeLogin(request,response);
+                        isRememberMeLogin = userId != null;
                     } catch (SQLException e) {
                         Log.warning(e);
                     }
@@ -99,7 +100,7 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
                 if (userId != null) {
                     Context.getPermissionsManager().checkUserEnabled(userId);
                     Context.getStatisticsManager().registerRequest(userId);
-                    securityContext = new UserSecurityContext(new UserPrincipal(userId));
+                    securityContext = new UserSecurityContext(new UserPrincipal(userId, isRememberMeLogin));
                 }
 
             }

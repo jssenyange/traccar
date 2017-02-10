@@ -72,6 +72,12 @@ public class UserResource extends BaseResource {
                 }
             }
         }
+
+        // Do not allow adding users when in readonly mode
+        if (Context.getPermissionsManager().isManager(getUserId())) {
+            checkRememberMeLogin();
+        }
+
         Context.getPermissionsManager().addUser(entity);
         if (Context.getPermissionsManager().isManager(getUserId())) {
             Context.getDataManager().linkUser(getUserId(), entity.getId());
@@ -86,6 +92,7 @@ public class UserResource extends BaseResource {
     @Path("{id}")
     @PUT
     public Response update(User entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         User before = Context.getPermissionsManager().getUser(entity.getId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getId());
@@ -100,6 +107,7 @@ public class UserResource extends BaseResource {
     @Path("{id}")
     @DELETE
     public Response remove(@PathParam("id") long id) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), id);
         Context.getPermissionsManager().removeUser(id);

@@ -38,6 +38,8 @@ public class UserPermissionResource extends BaseResource {
     @POST
     public Response add(UserPermission entity) throws SQLException {
         Context.getPermissionsManager().checkAdmin(getUserId());
+        checkRememberMeLogin();
+
         if (entity.getUserId() != entity.getManagedUserId()) {
             Context.getDataManager().linkUser(entity.getUserId(), entity.getManagedUserId());
             Context.getPermissionsManager().refreshUserPermissions();
@@ -48,6 +50,8 @@ public class UserPermissionResource extends BaseResource {
     @DELETE
     public Response remove(UserPermission entity) throws SQLException {
         Context.getPermissionsManager().checkAdmin(getUserId());
+        checkRememberMeLogin();
+
         Context.getDataManager().unlinkUser(entity.getUserId(), entity.getManagedUserId());
         Context.getPermissionsManager().refreshUserPermissions();
         return Response.noContent().build();

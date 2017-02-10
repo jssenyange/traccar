@@ -35,6 +35,7 @@ public class DevicePermissionResource extends BaseResource {
 
     @POST
     public Response add(DevicePermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkDevice(getUserId(), entity.getDeviceId());
@@ -48,6 +49,7 @@ public class DevicePermissionResource extends BaseResource {
 
     @DELETE
     public Response remove(DevicePermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         if (getUserId() != entity.getUserId()) {
             Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());

@@ -35,6 +35,7 @@ public class GroupPermissionResource extends BaseResource {
 
     @POST
     public Response add(GroupPermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkGroup(getUserId(), entity.getGroupId());
@@ -48,6 +49,7 @@ public class GroupPermissionResource extends BaseResource {
 
     @DELETE
     public Response remove(GroupPermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkGroup(getUserId(), entity.getGroupId());

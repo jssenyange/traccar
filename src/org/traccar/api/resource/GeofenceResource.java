@@ -83,6 +83,7 @@ public class GeofenceResource extends BaseResource {
 
     @POST
     public Response add(Geofence entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getDataManager().addGeofence(entity);
         Context.getDataManager().linkGeofence(getUserId(), entity.getId());
@@ -93,6 +94,7 @@ public class GeofenceResource extends BaseResource {
     @Path("{id}")
     @PUT
     public Response update(Geofence entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkGeofence(getUserId(), entity.getId());
         Context.getGeofenceManager().updateGeofence(entity);
@@ -102,6 +104,7 @@ public class GeofenceResource extends BaseResource {
     @Path("{id}")
     @DELETE
     public Response remove(@PathParam("id") long id) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkGeofence(getUserId(), id);
         Context.getDataManager().removeGeofence(id);

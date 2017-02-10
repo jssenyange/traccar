@@ -20,9 +20,11 @@ import java.security.Principal;
 public class UserPrincipal implements Principal {
 
     private long userId;
+    private boolean isRememberMeLogin;
 
-    public UserPrincipal(long userId) {
+    public UserPrincipal(long userId, boolean isRememberMeLogin) {
         this.userId = userId;
+        this.isRememberMeLogin = isRememberMeLogin;
     }
 
     public Long getUserId() {
@@ -32,6 +34,10 @@ public class UserPrincipal implements Principal {
     @Override
     public String getName() {
         return null;
+    }
+
+    public boolean getIsRememberMeLogin(){
+        return isRememberMeLogin;
     }
 
 }

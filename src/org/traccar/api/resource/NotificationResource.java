@@ -54,6 +54,7 @@ public class NotificationResource extends BaseResource {
 
     @POST
     public Response update(Notification entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getNotificationManager().updateNotification(entity);
@@ -63,6 +64,7 @@ public class NotificationResource extends BaseResource {
     @Path("test")
     @POST
     public Response testMail() throws MessagingException {
+        checkRememberMeLogin();
         NotificationMail.sendMailSync(getUserId(), new Event("test", 0), null);
         return Response.noContent().build();
     }

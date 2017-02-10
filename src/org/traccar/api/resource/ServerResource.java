@@ -43,6 +43,7 @@ public class ServerResource extends BaseResource {
     @PUT
     public Response update(Server entity) throws SQLException {
         Context.getPermissionsManager().checkAdmin(getUserId());
+        checkRememberMeLogin();
         Context.getPermissionsManager().updateServer(entity);
         return Response.ok(entity).build();
     }

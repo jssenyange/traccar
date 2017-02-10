@@ -54,6 +54,7 @@ public class AttributeAliasResource extends BaseResource {
 
     @POST
     public Response add(AttributeAlias entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         if (!Context.getPermissionsManager().isAdmin(getUserId())) {
@@ -66,6 +67,7 @@ public class AttributeAliasResource extends BaseResource {
     @Path("{id}")
     @PUT
     public Response update(AttributeAlias entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         if (!Context.getPermissionsManager().isAdmin(getUserId())) {
@@ -80,6 +82,7 @@ public class AttributeAliasResource extends BaseResource {
     @Path("{id}")
     @DELETE
     public Response remove(@PathParam("id") long id) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         if (!Context.getPermissionsManager().isAdmin(getUserId())) {

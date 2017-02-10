@@ -61,6 +61,7 @@ public class DeviceResource extends BaseResource {
 
     @POST
     public Response add(Device entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceLimit(getUserId());
@@ -76,6 +77,7 @@ public class DeviceResource extends BaseResource {
     @Path("{id}")
     @PUT
     public Response update(Device entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         Context.getPermissionsManager().checkDevice(getUserId(), entity.getId());
@@ -89,6 +91,7 @@ public class DeviceResource extends BaseResource {
     @Path("{id}")
     @DELETE
     public Response remove(@PathParam("id") long id) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         Context.getPermissionsManager().checkDevice(getUserId(), id);
@@ -105,6 +108,7 @@ public class DeviceResource extends BaseResource {
     @PUT
     public Response updateTotalDistance(DeviceTotalDistance entity) throws SQLException {
         Context.getPermissionsManager().checkAdmin(getUserId());
+        checkRememberMeLogin();
         Context.getDeviceManager().resetTotalDistance(entity);
         return Response.noContent().build();
     }

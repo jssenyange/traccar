@@ -59,6 +59,7 @@ public class GroupResource extends BaseResource {
 
     @POST
     public Response add(Group entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getDeviceManager().addGroup(entity);
         Context.getDataManager().linkGroup(getUserId(), entity.getId());
@@ -72,6 +73,7 @@ public class GroupResource extends BaseResource {
     @Path("{id}")
     @PUT
     public Response update(Group entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkGroup(getUserId(), entity.getId());
         Context.getDeviceManager().updateGroup(entity);
@@ -84,6 +86,7 @@ public class GroupResource extends BaseResource {
     @Path("{id}")
     @DELETE
     public Response remove(@PathParam("id") long id) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkGroup(getUserId(), id);
         Context.getDeviceManager().removeGroup(id);

@@ -62,6 +62,7 @@ public class CalendarResource extends BaseResource {
 
     @POST
     public Response add(Calendar entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getCalendarManager().addCalendar(entity);
         Context.getDataManager().linkCalendar(getUserId(), entity.getId());
@@ -72,6 +73,7 @@ public class CalendarResource extends BaseResource {
     @Path("{id}")
     @PUT
     public Response update(Calendar entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkCalendar(getUserId(), entity.getId());
         Context.getCalendarManager().updateCalendar(entity);
@@ -81,6 +83,7 @@ public class CalendarResource extends BaseResource {
     @Path("{id}")
     @DELETE
     public Response remove(@PathParam("id") long id) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkCalendar(getUserId(), id);
         Context.getCalendarManager().removeCalendar(id);

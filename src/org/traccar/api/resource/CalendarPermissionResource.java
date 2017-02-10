@@ -37,6 +37,7 @@ public class CalendarPermissionResource extends BaseResource {
 
     @POST
     public Response add(CalendarPermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkCalendar(getUserId(), entity.getCalendarId());
@@ -47,6 +48,7 @@ public class CalendarPermissionResource extends BaseResource {
 
     @DELETE
     public Response remove(CalendarPermission entity) throws SQLException {
+        checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
         Context.getPermissionsManager().checkUser(getUserId(), entity.getUserId());
         Context.getPermissionsManager().checkCalendar(getUserId(), entity.getCalendarId());
