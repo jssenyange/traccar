@@ -76,7 +76,7 @@
 
   </changeSet>
 
-  <changeSet author="author" id="changelog-3.10-notmssql">
+  <changeSet author="author" id="changelog-3.10-notmssql" failOnError="false">
 
     <preConditions onFail="MARK_RAN">
       <not>
