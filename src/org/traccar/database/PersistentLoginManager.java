@@ -3,6 +3,7 @@ package org.traccar.database;
 
 import org.traccar.Config;
 import org.traccar.helper.DateUtil;
+import org.traccar.helper.Hashing;
 import org.traccar.model.PersistentLogin;
 import org.traccar.model.User;
 
@@ -58,6 +59,10 @@ public class PersistentLoginManager {
         return cookieValues;
     }
 
+    public void deletePersistentLogin(PersistentLogin persistentLogin) throws SQLException {
+        dataManager.deletePersistentLogin(persistentLogin);
+    }
+
     public void deletePersistentLogin(String cookieValue) throws SQLException {
         Object[] cookieValues = parseCookieValue(cookieValue);
         if(cookieValues == null) return;
@@ -105,7 +110,7 @@ public class PersistentLoginManager {
         PersistentLogin persistentLogin=new PersistentLogin();
 
         persistentLogin.setUserId(user.getId());
-        persistentLogin.setSid(UUID.randomUUID().toString().replace("-",""));
+        persistentLogin.setSid( (UUID.randomUUID().toString().replace("-","")+ Hashing.createRandomString(18)).toLowerCase());
 
         persistentLogin.setLastUsed(null);
         persistentLogin.setCreated(today);

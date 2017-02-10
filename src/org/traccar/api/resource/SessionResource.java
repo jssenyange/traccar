@@ -57,15 +57,30 @@ public class SessionResource extends BaseResource {
     public User get(@QueryParam("token") String token) throws SQLException {
         Long userId = (Long) request.getSession().getAttribute(USER_ID_KEY);
         if (userId == null) {
-            Cookie persistentCookie = getPersistentLoginCookie();
-            if(persistentCookie != null){
-                boolean deleteCookie = true;
-                PersistentLoginManager persistentLoginManager=Context.getPersistentLoginManager();
-                Object[] cookieValues = persistentLoginManager.parseCookieValue(persistentCookie.getValue());
-                if(cookieValues != null){
-                    PersistentLogin persistentLogin = persistentLoginManager.getPersistentLogin((long) cookieValues[0]);
-                    if(persistentLogin != null && persistentLogin.getSid().equals(cookieValues[1])){
-                         User user = Context.getPermissionsManager().getUser(persistentLogin.getUserId());
+
+        }
+        if (userId != null) {
+            Context.getPermissionsManager().checkUserEnabled(userId);
+            return Context.getPermissionsManager().getUser(userId);
+        } else {
+            throw new WebApplicationException(Response.status(Response.Status.NOT_FOUND).build());
+        }
+    }
+
+    public static Long rememberMeLogin(HttpServletRequest request, HttpServletResponse response) throws SQLException {
+        Long userId=null;
+        Cookie persistentCookie = getPersistentLoginCookie(request);
+        if(persistentCookie != null){
+            boolean deleteCookie = true;
+            PersistentLoginManager persistentLoginManager=Context.getPersistentLoginManager();
+            Object[] cookieValues = persistentLoginManager.parseCookieValue(persistentCookie.getValue());
+            if(cookieValues != null){
+                PersistentLogin persistentLogin = persistentLoginManager.getPersistentLogin((long) cookieValues[0]);
+                if(persistentLogin != null && persistentLogin.getSid().equals(cookieValues[1])){
+                    if(persistentLogin.getExpiryDate().before(new Date())){
+                        persistentLoginManager.deletePersistentLogin(persistentLogin);
+                    }else{
+                        User user = Context.getPermissionsManager().getUser(persistentLogin.getUserId());
                         if(user != null){
                             try {
                                 Context.getPermissionsManager().checkUserEnabled(user.getId());
@@ -82,21 +97,16 @@ public class SessionResource extends BaseResource {
                         }
                     }
                 }
-                if(deleteCookie){
-                    persistentCookie.setMaxAge(0);
-                    response.addCookie(persistentCookie);
-                }
+            }
+            if(deleteCookie){
+                persistentCookie.setMaxAge(0);
+                response.addCookie(persistentCookie);
             }
         }
-        if (userId != null) {
-            Context.getPermissionsManager().checkUserEnabled(userId);
-            return Context.getPermissionsManager().getUser(userId);
-        } else {
-            throw new WebApplicationException(Response.status(Response.Status.NOT_FOUND).build());
-        }
+        return userId;
     }
 
-    private Cookie getPersistentLoginCookie(){
+    private static Cookie getPersistentLoginCookie(HttpServletRequest request){
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             String persistentLoginCookieName = Context.getPersistentLoginManager().getCookieName();
@@ -116,7 +126,7 @@ public class SessionResource extends BaseResource {
         User user = Context.getPermissionsManager().login(email, password);
         if (user != null) {
             request.getSession().setAttribute(USER_ID_KEY, user.getId());
-            Cookie persistentLoginCookie = getPersistentLoginCookie();
+            Cookie persistentLoginCookie = getPersistentLoginCookie(request);
             if(rememberMe){
                 if(persistentLoginCookie != null){
                     Context.getPersistentLoginManager().deletePersistentLogin(persistentLoginCookie.getValue());
@@ -143,7 +153,7 @@ public class SessionResource extends BaseResource {
     @DELETE
     public Response remove() throws SQLException {
         request.getSession().removeAttribute(USER_ID_KEY);
-        Cookie persistentLoginCookie = getPersistentLoginCookie();
+        Cookie persistentLoginCookie = getPersistentLoginCookie(request);
         if(persistentLoginCookie != null){
             persistentLoginCookie.setMaxAge(0);
             response.addCookie(persistentLoginCookie);

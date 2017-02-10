@@ -22,6 +22,7 @@ import org.traccar.model.User;
 
 import javax.annotation.security.PermitAll;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
@@ -54,6 +55,9 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
     private HttpServletRequest request;
 
     @javax.ws.rs.core.Context
+    private HttpServletResponse response;
+
+    @javax.ws.rs.core.Context
     private ResourceInfo resourceInfo;
 
     @Override
@@ -84,6 +88,14 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
             } else if (request.getSession() != null) {
 
                 Long userId = (Long) request.getSession().getAttribute(SessionResource.USER_ID_KEY);
+                if(userId == null){
+                    try {
+                        // Log-in using the persistent cookie if it exists. This avoids errors when server is restarted
+                        userId = SessionResource.rememberMeLogin(request,response);
+                    } catch (SQLException e) {
+                        Log.warning(e);
+                    }
+                }
                 if (userId != null) {
                     Context.getPermissionsManager().checkUserEnabled(userId);
                     Context.getStatisticsManager().registerRequest(userId);
