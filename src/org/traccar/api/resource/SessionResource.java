@@ -56,9 +56,6 @@ public class SessionResource extends BaseResource {
     @GET
     public User get(@QueryParam("token") String token) throws SQLException {
         Long userId = (Long) request.getSession().getAttribute(USER_ID_KEY);
-        if (userId == null) {
-
-        }
         if (userId != null) {
             Context.getPermissionsManager().checkUserEnabled(userId);
             return Context.getPermissionsManager().getUser(userId);
@@ -68,27 +65,27 @@ public class SessionResource extends BaseResource {
     }
 
     public static Long rememberMeLogin(HttpServletRequest request, HttpServletResponse response) throws SQLException {
-        Long userId=null;
+        Long userId = null;
         Cookie persistentCookie = getPersistentLoginCookie(request);
-        if(persistentCookie != null){
+        if (persistentCookie != null) {
             boolean deleteCookie = true;
-            PersistentLoginManager persistentLoginManager=Context.getPersistentLoginManager();
+            PersistentLoginManager persistentLoginManager = Context.getPersistentLoginManager();
             Object[] cookieValues = persistentLoginManager.parseCookieValue(persistentCookie.getValue());
-            if(cookieValues != null){
+            if (cookieValues != null) {
                 PersistentLogin persistentLogin = persistentLoginManager.getPersistentLogin((long) cookieValues[0]);
-                if(persistentLogin != null && persistentLogin.getSid().equals(cookieValues[1])){
-                    if(persistentLogin.getExpiryDate().before(new Date())){
+                if (persistentLogin != null && persistentLogin.getSid().equals(cookieValues[1])) {
+                    if (persistentLogin.getExpiryDate().before(new Date())) {
                         persistentLoginManager.deletePersistentLogin(persistentLogin);
-                    }else{
+                    } else {
                         User user = Context.getPermissionsManager().getUser(persistentLogin.getUserId());
-                        if(user != null){
+                        if (user != null) {
                             try {
                                 Context.getPermissionsManager().checkUserEnabled(user.getId());
                                 deleteCookie = false;
-                            }catch (SecurityException exception){
+                            } catch (SecurityException exception) {
                                 deleteCookie = true;
                             }
-                            if(!deleteCookie) {
+                            if (!deleteCookie) {
                                 userId = user.getId();
                                 request.getSession().setAttribute(USER_ID_KEY, userId);
                                 persistentLogin.setLastUsed(new Date());
@@ -98,7 +95,7 @@ public class SessionResource extends BaseResource {
                     }
                 }
             }
-            if(deleteCookie){
+            if (deleteCookie) {
                 persistentCookie.setMaxAge(0);
                 response.addCookie(persistentCookie);
             }
@@ -106,7 +103,7 @@ public class SessionResource extends BaseResource {
         return userId;
     }
 
-    private static Cookie getPersistentLoginCookie(HttpServletRequest request){
+    private static Cookie getPersistentLoginCookie(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             String persistentLoginCookieName = Context.getPersistentLoginManager().getCookieName();
@@ -122,23 +119,23 @@ public class SessionResource extends BaseResource {
     @PermitAll
     @POST
     public User add(
-            @FormParam("email") String email, @FormParam("password") String password, @FormParam("rememberField") boolean rememberMe) throws SQLException {
+            @FormParam("email") String email, @FormParam("password") String password,
+            @FormParam("rememberField") boolean rememberMe) throws SQLException {
         User user = Context.getPermissionsManager().login(email, password);
         if (user != null) {
             request.getSession().setAttribute(USER_ID_KEY, user.getId());
             Cookie persistentLoginCookie = getPersistentLoginCookie(request);
-            if(rememberMe){
-                if(persistentLoginCookie != null){
+            if (rememberMe) {
+                if (persistentLoginCookie != null) {
                     Context.getPersistentLoginManager().deletePersistentLogin(persistentLoginCookie.getValue());
                 }
 
                 PersistentLogin persistentLogin = Context.getPersistentLoginManager().createPersistentLogin(user);
-                persistentLoginCookie=new Cookie(Context.getPersistentLoginManager().getCookieName(),
+                persistentLoginCookie = new Cookie(Context.getPersistentLoginManager().getCookieName(),
                         Context.getPersistentLoginManager().getCookieValue(persistentLogin));
-                persistentLoginCookie.setMaxAge(Context.getPersistentLoginManager().getExpiryDays()*24*60*60);
+                persistentLoginCookie.setMaxAge(Context.getPersistentLoginManager().getExpiryDays() * 24 * 60 * 60);
                 response.addCookie(persistentLoginCookie);
-            }
-            else if(persistentLoginCookie != null){
+            } else if (persistentLoginCookie != null) {
                 Context.getPersistentLoginManager().deletePersistentLogin(persistentLoginCookie.getValue());
                 persistentLoginCookie.setMaxAge(0);
                 response.addCookie(persistentLoginCookie);
@@ -154,7 +151,7 @@ public class SessionResource extends BaseResource {
     public Response remove() throws SQLException {
         request.getSession().removeAttribute(USER_ID_KEY);
         Cookie persistentLoginCookie = getPersistentLoginCookie(request);
-        if(persistentLoginCookie != null){
+        if (persistentLoginCookie != null) {
             persistentLoginCookie.setMaxAge(0);
             response.addCookie(persistentLoginCookie);
             Context.getPersistentLoginManager().deletePersistentLogin(persistentLoginCookie.getValue());

@@ -30,7 +30,7 @@ public class BaseResource {
         return 0;
     }
 
-    protected final boolean isRememberMeLogin(){
+    protected final boolean isRememberMeLogin() {
         UserPrincipal principal = (UserPrincipal) securityContext.getUserPrincipal();
         if (principal != null) {
             return principal.getIsRememberMeLogin();
@@ -38,9 +38,10 @@ public class BaseResource {
         return false;
     }
 
-    protected final void checkRememberMeLogin(){
-        if(isRememberMeLogin()){
-            throw new SecurityException("Account is readonly due to a remembered login. Log-out and Log-in again to perform the action");
+    protected final void checkRememberMeLogin() {
+        if (isRememberMeLogin()) {
+            throw new SecurityException(
+                    "Account is readonly due to a remembered login. Log-out and Log-in again to perform the action");
         }
     }
 }

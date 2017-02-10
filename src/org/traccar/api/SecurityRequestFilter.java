@@ -79,7 +79,7 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
                     User user = Context.getPermissionsManager().login(auth[0], auth[1]);
                     if (user != null) {
                         Context.getStatisticsManager().registerRequest(user.getId());
-                        securityContext = new UserSecurityContext(new UserPrincipal(user.getId(),isRememberMeLogin));
+                        securityContext = new UserSecurityContext(new UserPrincipal(user.getId(), isRememberMeLogin));
                     }
                 } catch (SQLException e) {
                     throw new WebApplicationException(e);
@@ -88,10 +88,10 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
             } else if (request.getSession() != null) {
 
                 Long userId = (Long) request.getSession().getAttribute(SessionResource.USER_ID_KEY);
-                if(userId == null){
+                if (userId == null) {
                     try {
                         // Log-in using the persistent cookie if it exists. This avoids errors when server is restarted
-                        userId = SessionResource.rememberMeLogin(request,response);
+                        userId = SessionResource.rememberMeLogin(request, response);
                         isRememberMeLogin = userId != null;
                     } catch (SQLException e) {
                         Log.warning(e);

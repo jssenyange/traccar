@@ -36,7 +36,7 @@ public class UserPrincipal implements Principal {
         return null;
     }
 
-    public boolean getIsRememberMeLogin(){
+    public boolean getIsRememberMeLogin() {
         return isRememberMeLogin;
     }
 

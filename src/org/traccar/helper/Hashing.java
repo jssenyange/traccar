@@ -97,7 +97,7 @@ public final class Hashing {
         return diff == 0;
     }
 
-    public static String createRandomString(int size){
+    public static String createRandomString(int size) {
         byte[] randomString = new byte[size];
         RANDOM.nextBytes(randomString);
         return DatatypeConverter.printHexBinary(randomString);

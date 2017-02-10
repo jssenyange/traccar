@@ -49,9 +49,9 @@ public final class Main {
                     Log.warning(error);
                 }
 
-                try{
+                try {
                     Context.getPersistentLoginManager().deleteStalePersistentLogins();
-                }catch (Exception exception){
+                } catch (Exception exception) {
                     Log.warning(exception);
                 }
             }
