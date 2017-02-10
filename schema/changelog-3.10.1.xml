@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
+  logicalFilePath="changelog-3.10">
+
+  <changeSet author="author" id="changelog-3.10.1">
+
+    <createTable tableName="persistent_login">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" />
+      </column>
+      <column name="userId" type="INT">
+        <constraints nullable="false" />
+      </column>
+      <column name="sid" type="VARCHAR(128)">
+        <constraints nullable="false" />
+      </column>
+      <column name="expiryDate" type="TIMESTAMP" >
+        <constraints nullable="false" />
+      </column>
+      <column name="created" type="TIMESTAMP" />
+      <column name="lastUsed" type="TIMESTAMP" />
+
+    </createTable>
+
+
+    <addForeignKeyConstraint baseTableName="persistent_login" baseColumnNames="userId" constraintName="fk_persistent_login_userId" referencedTableName="users" referencedColumnNames="id" onDelete="CASCADE" />
+
+
+  </changeSet>
+</databaseChangeLog>

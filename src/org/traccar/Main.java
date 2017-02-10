@@ -48,6 +48,12 @@ public final class Main {
                 } catch (SQLException error) {
                     Log.warning(error);
                 }
+
+                try{
+                    Context.getPersistentLoginManager().deleteStalePersistentLogins();
+                }catch (Exception exception){
+                    Log.warning(exception);
+                }
             }
         }, 0, CLEAN_PERIOD);
 

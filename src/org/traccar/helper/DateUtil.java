@@ -54,7 +54,7 @@ public final class DateUtil {
         return guess;
     }
 
-    private static Date dateAdd(Date guess, int field, int amount) {
+    public static Date dateAdd(Date guess, int field, int amount) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(guess);
         calendar.add(field, amount);

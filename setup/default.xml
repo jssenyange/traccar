@@ -365,6 +365,47 @@
         DELETE FROM user_user WHERE userId = :userId AND managedUserId = :managedUserId
     </entry>
 
+    <entry key='database.getPersistentLogin'>
+        SELECT id, userId, sid, expiryDate, created, lastUsed
+        FROM persistent_login
+        WHERE id = :id
+    </entry>
+
+    <entry key='database.getUserPersistentLoginCount'>
+        SELECT count(*) userId
+        FROM persistent_login
+        WHERE userId = :userId
+    </entry>
+
+    <entry key='database.getUserPersistentLogins'>
+        SELECT id, userId, sid, expiryDate, created, lastUsed
+        FROM persistent_login
+        WHERE userId = :userId
+    </entry>
+
+    <entry key='database.insertPersistentLogin'>
+        INSERT INTO persistent_login (userId, sid, expiryDate, created, lastUsed)
+        VALUES (:userId, :sid, :expiryDate, :created, :lastUsed)
+    </entry>
+
+    <entry key='database.updatePersistentLogin'>
+        UPDATE persistent_login SET
+        userId = :userId,
+        sid = :sid,
+        expiryDate = :expiryDate,
+        created = :created,
+        lastUsed = :lastUsed
+        WHERE id = :id
+    </entry>
+
+    <entry key='database.deletePersistentLogin'>
+        DELETE FROM persistent_login WHERE id = :id
+    </entry>
+
+    <entry key='database.deleteStalePersistentLogins'>
+        DELETE FROM persistent_login WHERE (expiryDate &lt;= :expiryDate) OR (lastUsed is not null and lastUsed &lt;= :lastUsed) or (lastUsed is null and created &lt;= :lastUsed)
+    </entry>
+
     <!-- PROTOCOL CONFIG -->
 
     <entry key='gps103.port'>5001</entry>

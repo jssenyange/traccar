@@ -24,16 +24,7 @@ import java.util.Properties;
 
 import org.apache.velocity.app.VelocityEngine;
 import org.eclipse.jetty.util.URIUtil;
-import org.traccar.database.AliasesManager;
-import org.traccar.database.CalendarManager;
-import org.traccar.database.ConnectionManager;
-import org.traccar.database.DataManager;
-import org.traccar.database.DeviceManager;
-import org.traccar.database.IdentityManager;
-import org.traccar.database.NotificationManager;
-import org.traccar.database.PermissionsManager;
-import org.traccar.database.GeofenceManager;
-import org.traccar.database.StatisticsManager;
+import org.traccar.database.*;
 import org.traccar.geocoder.BingMapsGeocoder;
 import org.traccar.geocoder.FactualGeocoder;
 import org.traccar.geocoder.GeocodeFarmGeocoder;
@@ -176,6 +167,10 @@ public final class Context {
         return statisticsManager;
     }
 
+    private  static PersistentLoginManager persistentLoginManager;
+
+    public  static PersistentLoginManager getPersistentLoginManager(){ return persistentLoginManager; }
+
     public static void init(String[] arguments) throws Exception {
 
         config = new Config();
@@ -310,6 +305,8 @@ public final class Context {
         aliasesManager = new AliasesManager(dataManager);
 
         statisticsManager = new StatisticsManager();
+
+        persistentLoginManager=new PersistentLoginManager(dataManager,config);
 
     }
 

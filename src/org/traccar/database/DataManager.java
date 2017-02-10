@@ -36,24 +36,7 @@ import liquibase.resource.ResourceAccessor;
 
 import org.traccar.Config;
 import org.traccar.helper.Log;
-import org.traccar.model.AttributeAlias;
-import org.traccar.model.Calendar;
-import org.traccar.model.CalendarPermission;
-import org.traccar.model.Device;
-import org.traccar.model.DevicePermission;
-import org.traccar.model.Event;
-import org.traccar.model.Geofence;
-import org.traccar.model.Group;
-import org.traccar.model.GroupGeofence;
-import org.traccar.model.GroupPermission;
-import org.traccar.model.Notification;
-import org.traccar.model.Position;
-import org.traccar.model.Server;
-import org.traccar.model.Statistics;
-import org.traccar.model.User;
-import org.traccar.model.UserPermission;
-import org.traccar.model.DeviceGeofence;
-import org.traccar.model.GeofencePermission;
+import org.traccar.model.*;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -547,4 +530,49 @@ public class DataManager {
                 .setLong("managedUserId", managedUserId)
                 .executeUpdate();
     }
+
+    public void insertPersistentLogin(PersistentLogin PersistentLogin) throws SQLException {
+        PersistentLogin.setId(QueryBuilder.create(dataSource, getQuery("database.insertPersistentLogin"), true)
+                .setObject(PersistentLogin)
+                .executeUpdate());
+    }
+
+    public void updatePersistentLogin(PersistentLogin PersistentLogin) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.updatePersistentLogin"))
+                .setObject(PersistentLogin)
+                .executeUpdate();
+    }
+
+    public void deletePersistentLogin(PersistentLogin PersistentLogin) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.deletePersistentLogin"))
+                .setLong("id", PersistentLogin.getId())
+                .executeUpdate();
+    }
+
+    public void deleteStalePersistentLogins(Date expiryDate, Date staleDate) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.deleteStalePersistentLogins"))
+                .setDate("expiryDate", expiryDate)
+                .setDate("lastUsed", staleDate)
+                .executeUpdate();
+    }
+
+    public PersistentLogin getPersistentLogin(long id) throws SQLException {
+        return QueryBuilder.create(dataSource, getQuery("database.getPersistentLogin"))
+                .setLong("id", id)
+                .executeQuerySingle(PersistentLogin.class);
+    }
+
+    public Collection<PersistentLogin> getUserPersistentLogins(long userId) throws SQLException {
+        return QueryBuilder.create(dataSource, getQuery("database.getUserPersistentLogins"))
+                .setLong("userId", userId)
+                .executeQuery(PersistentLogin.class);
+    }
+
+    public int getUserPersistentLoginCount(long userId) throws SQLException {
+        PersistentLogin count =  QueryBuilder.create(dataSource, getQuery("database.getUserPersistentLoginCount"))
+                .setLong("userId", userId)
+                .executeQuerySingle(PersistentLogin.class);
+        return count == null ? 0 : (int)count.getId();
+    }
+
 }
