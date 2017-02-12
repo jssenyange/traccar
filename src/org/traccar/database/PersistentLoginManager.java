@@ -80,7 +80,7 @@ public class PersistentLoginManager {
         }
 
         PersistentLogin persistentLogin = dataManager.getPersistentLogin((long) cookieValues[0]);
-        if (persistentLogin != null && persistentLogin.getSid().equals(cookieValues[1])) {
+        if (persistentLogin != null && isCookieValid(persistentLogin, (String) cookieValues[1])) {
             dataManager.deletePersistentLogin(persistentLogin);
         }
     }
