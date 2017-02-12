@@ -73,7 +73,8 @@ public class SessionResource extends BaseResource {
             Object[] cookieValues = persistentLoginManager.parseCookieValue(persistentCookie.getValue());
             if (cookieValues != null) {
                 PersistentLogin persistentLogin = persistentLoginManager.getPersistentLogin((long) cookieValues[0]);
-                if (persistentLogin != null && persistentLogin.getSid().equals(cookieValues[1])) {
+                if (persistentLogin != null
+                        && persistentLoginManager.isCookieValid(persistentLogin, (String) cookieValues[1])) {
                     if (persistentLogin.getExpiryDate().before(new Date())) {
                         persistentLoginManager.deletePersistentLogin(persistentLogin);
                     } else {

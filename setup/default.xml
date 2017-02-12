@@ -366,7 +366,7 @@
     </entry>
 
     <entry key='database.getPersistentLogin'>
-        SELECT id, userId, sid, expiryDate, created, lastUsed
+        SELECT id, userId, sid, expiryDate, created, lastUsed, salt
         FROM persistent_login
         WHERE id = :id
     </entry>
@@ -378,14 +378,14 @@
     </entry>
 
     <entry key='database.getUserPersistentLogins'>
-        SELECT id, userId, sid, expiryDate, created, lastUsed
+        SELECT id, userId, sid, expiryDate, created, lastUsed, salt
         FROM persistent_login
         WHERE userId = :userId
     </entry>
 
     <entry key='database.insertPersistentLogin'>
-        INSERT INTO persistent_login (userId, sid, expiryDate, created, lastUsed)
-        VALUES (:userId, :sid, :expiryDate, :created, :lastUsed)
+        INSERT INTO persistent_login (userId, sid, expiryDate, created, lastUsed, salt)
+        VALUES (:userId, :sid, :expiryDate, :created, :lastUsed, :salt)
     </entry>
 
     <entry key='database.updatePersistentLogin'>

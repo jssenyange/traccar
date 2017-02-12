@@ -18,6 +18,9 @@
       <column name="sid" type="VARCHAR(128)">
         <constraints nullable="false" />
       </column>
+      <column name="salt" type="VARCHAR(32)">
+        <constraints nullable="false" />
+      </column>
       <column name="expiryDate" type="TIMESTAMP" >
         <constraints nullable="false" />
       </column>

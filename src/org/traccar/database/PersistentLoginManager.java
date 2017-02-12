@@ -48,7 +48,7 @@ public class PersistentLoginManager {
     }
 
     public String getCookieValue(PersistentLogin persistentLogin) {
-        return  Long.toString(persistentLogin.getId()) + "|" + persistentLogin.getSid();
+        return  Long.toString(persistentLogin.getId()) + "|" + persistentLogin.getSidToken();
     }
 
     public Object[]  parseCookieValue(String cookieValue) {
@@ -122,9 +122,10 @@ public class PersistentLoginManager {
         PersistentLogin persistentLogin = new PersistentLogin();
 
         persistentLogin.setUserId(user.getId());
-        persistentLogin.setSid(
-                (UUID.randomUUID().toString().replace("-", "") + Hashing.createRandomString(18)).toLowerCase());
-
+        String token = (UUID.randomUUID().toString().replace("-", "") + Hashing.createRandomString(18)).toLowerCase();
+        persistentLogin.setSidToken(token);
+        persistentLogin.setSalt(Hashing.createRandomString(8));
+        persistentLogin.setSid(Hashing.createHash(token, persistentLogin.getSalt()).getHash());
         persistentLogin.setLastUsed(null);
         persistentLogin.setCreated(today);
         persistentLogin.setExpiryDate(DateUtil.dateAdd(today, Calendar.DATE, expiryDays));
@@ -132,6 +133,10 @@ public class PersistentLoginManager {
         dataManager.insertPersistentLogin(persistentLogin);
 
         return  persistentLogin;
+    }
+
+    public boolean isCookieValid(PersistentLogin persistentLogin, String cookieValue){
+        return Hashing.createHash(cookieValue, persistentLogin.getSalt()).getHash().equals(persistentLogin.getSid());
     }
 
     public void  deleteStalePersistentLogins() throws SQLException {

@@ -18,6 +18,7 @@ package org.traccar.helper;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.xml.bind.DatatypeConverter;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -72,10 +73,18 @@ public final class Hashing {
     public static HashingResult createHash(String password) {
         byte[] salt = new byte[SALT_SIZE];
         RANDOM.nextBytes(salt);
+        return createHash(password, salt);
+    }
+
+    public static HashingResult createHash(String password, byte[] salt) {
         byte[] hash = function(password.toCharArray(), salt);
         return new HashingResult(
                 DatatypeConverter.printHexBinary(hash),
                 DatatypeConverter.printHexBinary(salt));
+    }
+
+    public static HashingResult createHash(String password, String salt) {
+        return  createHash(password, salt.getBytes(StandardCharsets.UTF_8));
     }
 
     public static boolean validatePassword(String password, String hashHex, String saltHex) {

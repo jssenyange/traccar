@@ -6,6 +6,31 @@ public class PersistentLogin {
     private long id;
     private long userId;
     private String sid;
+    private String sidToken;
+    private Date expiryDate;
+    private Date created;
+    private Date lastUsed;
+    private String salt;
+
+    public String getSalt() {
+        return salt;
+    }
+
+    public void setSalt(String salt) {
+        this.salt = salt;
+    }
+
+
+
+    public String getSidToken() {
+        return sidToken;
+    }
+
+    public void setSidToken(String sidToken) {
+        this.sidToken = sidToken;
+    }
+
+
 
     public Date getLastUsed() {
         return lastUsed;
@@ -55,7 +80,5 @@ public class PersistentLogin {
         this.created = created;
     }
 
-    private Date expiryDate;
-    private Date created;
-    private Date lastUsed;
+
 }
