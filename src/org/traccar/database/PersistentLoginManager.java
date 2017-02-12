@@ -135,7 +135,7 @@ public class PersistentLoginManager {
         return  persistentLogin;
     }
 
-    public boolean isCookieValid(PersistentLogin persistentLogin, String cookieValue){
+    public boolean isCookieValid(PersistentLogin persistentLogin, String cookieValue) {
         return Hashing.createHash(cookieValue, persistentLogin.getSalt()).getHash().equals(persistentLogin.getSid());
     }
 
