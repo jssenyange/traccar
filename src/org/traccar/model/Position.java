@@ -22,7 +22,9 @@ public class Position extends Message {
     public static final String KEY_ORIGINAL = "raw";
     public static final String KEY_INDEX = "index";
     public static final String KEY_HDOP = "hdop";
-    public static final String KEY_SATELLITES = "sat";
+    public static final String KEY_VDOP = "vdop";
+    public static final String KEY_SATELLITES = "sat"; // in use
+    public static final String KEY_SATELLITES_VISIBLE = "satVisible";
     public static final String KEY_RSSI = "rssi";
     public static final String KEY_GPS = "gps";
     public static final String KEY_EVENT = "event";
@@ -38,7 +40,8 @@ public class Position extends Message {
     public static final String KEY_FUEL = "fuel";
     public static final String KEY_FUEL_CONSUMPTION = "fuelConsumption";
     public static final String KEY_RFID = "rfid";
-    public static final String KEY_VERSION = "version";
+    public static final String KEY_VERSION_FW = "versionFw";
+    public static final String KEY_VERSION_HW = "versionHw";
     public static final String KEY_TYPE = "type";
     public static final String KEY_IGNITION = "ignition";
     public static final String KEY_FLAGS = "flags";
@@ -55,6 +58,8 @@ public class Position extends Message {
     public static final String KEY_ARMED = "armed";
     public static final String KEY_ACCURACY = "accuracy";
     public static final String KEY_GEOFENCE = "geofence";
+    public static final String KEY_ACCELERATION = "acceleration";
+    public static final String KEY_DEVICE_TEMP = "deviceTemp";
 
     public static final String KEY_DTCS = "dtcs";
     public static final String KEY_OBD_SPEED = "obdSpeed";
@@ -75,6 +80,7 @@ public class Position extends Message {
     public static final String ALARM_LOW_SPEED = "lowspeed";
     public static final String ALARM_OVERSPEED = "overspeed";
     public static final String ALARM_FALL_DOWN = "fallDown";
+    public static final String ALARM_LOW_POWER = "lowPower";
     public static final String ALARM_LOW_BATTERY = "lowBattery";
     public static final String ALARM_FAULT = "fault";
     public static final String ALARM_POWER_OFF = "powerOff";
@@ -86,7 +92,7 @@ public class Position extends Message {
     public static final String ALARM_GPS_ANTENNA_CUT = "gpsAntennaCut";
     public static final String ALARM_ACCIDENT = "accident";
     public static final String ALARM_TOW = "tow";
-    public static final String ALARM_ACCELETATION = "hardAcceleration";
+    public static final String ALARM_ACCELERATION = "hardAcceleration";
     public static final String ALARM_BREAKING = "hardBreaking";
     public static final String ALARM_FATIGUE_DRIVING = "fatigueDriving";
     public static final String ALARM_POWER_CUT = "powerCut";
@@ -97,6 +103,7 @@ public class Position extends Message {
     public static final String ALARM_BONNET = "bonnet";
     public static final String ALARM_FOOT_BRAKE = "footBrake";
     public static final String ALARM_OIL_LEAK = "oilLeak";
+    public static final String ALARM_TAMPERING = "tampering";
 
     private String protocol;
 

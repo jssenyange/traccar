@@ -18,6 +18,7 @@ package org.traccar.protocol;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
+import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
@@ -35,7 +36,7 @@ public class TmgProtocolDecoder extends BaseProtocolDecoder {
 
     private static final Pattern PATTERN = new PatternBuilder()
             .text("$")
-            .expression("...,")                  // type
+            .expression("(...),")                // type
             .expression("[LH],")                 // history
             .number("(d+),")                     // imei
             .number("(dd)(dd)(dddd),")           // date
@@ -50,16 +51,21 @@ public class TmgProtocolDecoder extends BaseProtocolDecoder {
             .number("(-?d+.?d*),")               // altitude
             .number("(d+.d+),")                  // hdop
             .number("(d+),")                     // satellites
-            .number("d+,")                       // visible satellites
-            .number("[^,]*,")                    // operator
-            .number("d+,")                       // rssi
-            .number("x+,")                       // cid
+            .number("(d+),")                     // visible satellites
+            .number("([^,]*),")                  // operator
+            .number("(d+),")                     // rssi
+            .number("[^,]*,")                    // cid
             .expression("([01]),")               // ignition
             .number("(d+.?d*),")                 // battery
             .number("(d+.?d*),")                 // power
             .expression("([01]+),")              // input
             .expression("([01]+),")              // output
             .expression("[01]+,")                // temper status
+            .number("(d+.?d*)[^,]*,")            // adc1
+            .number("(d+.?d*)[^,]*,")            // adc2
+            .number("d+.?d*,")                   // trip meter
+            .expression("([^,]*),")              // software version
+            .expression("([^,]*),").optional()   // rfid
             .any()
             .compile();
 
@@ -72,6 +78,8 @@ public class TmgProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
+        String type = parser.next();
+
         DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
         if (deviceSession == null) {
             return null;
@@ -80,6 +88,31 @@ public class TmgProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
+
+        switch (type) {
+            case "rmv":
+                position.set(Position.KEY_ALARM, Position.ALARM_POWER_CUT);
+                break;
+            case "ebl":
+                position.set(Position.KEY_ALARM, Position.ALARM_LOW_POWER);
+                break;
+            case "ibl":
+                position.set(Position.KEY_ALARM, Position.ALARM_LOW_BATTERY);
+                break;
+            case "tmp":
+            case "smt":
+            case "btt":
+                position.set(Position.KEY_ALARM, Position.ALARM_TAMPERING);
+                break;
+            case "ion":
+                position.set(Position.KEY_IGNITION, true);
+                break;
+            case "iof":
+                position.set(Position.KEY_IGNITION, false);
+                break;
+            default:
+                break;
+        }
 
         DateBuilder dateBuilder = new DateBuilder()
                 .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
@@ -95,11 +128,27 @@ public class TmgProtocolDecoder extends BaseProtocolDecoder {
 
         position.set(Position.KEY_HDOP, parser.nextDouble());
         position.set(Position.KEY_SATELLITES, parser.nextInt());
+        position.set(Position.KEY_SATELLITES_VISIBLE, parser.nextInt());
+        position.set("operator", parser.next());
+        position.set(Position.KEY_RSSI, parser.nextInt());
         position.set(Position.KEY_IGNITION, parser.nextInt() == 1);
         position.set(Position.KEY_BATTERY, parser.nextDouble());
         position.set(Position.KEY_POWER, parser.nextDouble());
-        position.set(Position.KEY_INPUT, parser.nextInt(2));
-        position.set(Position.KEY_OUTPUT, parser.nextInt(2));
+
+        int input = parser.nextInt(2);
+        int output = parser.nextInt(2);
+
+        if (!BitUtil.check(input, 0)) {
+            position.set(Position.KEY_ALARM, Position.ALARM_SOS);
+        }
+
+        position.set(Position.KEY_INPUT, input);
+        position.set(Position.KEY_OUTPUT, output);
+
+        position.set(Position.PREFIX_ADC + 1, parser.nextDouble());
+        position.set(Position.PREFIX_ADC + 2, parser.nextDouble());
+        position.set(Position.KEY_VERSION_FW, parser.next());
+        position.set(Position.KEY_RFID, parser.next());
 
         return position;
     }
