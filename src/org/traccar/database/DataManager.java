@@ -177,6 +177,7 @@ public class DataManager {
             QueryBuilder.create(dataSource, getQuery("database.updateUserPassword"))
                 .setObject(user)
                 .executeUpdate();
+            deleteUserPersistentLogins(user.getId());
         }
     }
 
@@ -591,6 +592,12 @@ public class DataManager {
                 .setLong("userId", userId)
                 .executeQuerySingle(PersistentLogin.class);
         return count == null ? 0 : (int) count.getId();
+    }
+
+    public void deleteUserPersistentLogins(long userId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.deleteUserPersistentLogins"))
+                .setLong("userId", userId)
+                .executeUpdate();
     }
 
 }

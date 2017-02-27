@@ -409,6 +409,10 @@
         DELETE FROM persistent_login WHERE (expiryDate &lt;= :expiryDate) OR (lastUsed is not null and lastUsed &lt;= :lastUsed) or (lastUsed is null and created &lt;= :lastUsed)
     </entry>
 
+    <entry key='database.deleteUserPersistentLogins'>
+        DELETE FROM persistent_login WHERE userId = :userId
+    </entry>
+
     <!-- PROTOCOL CONFIG -->
 
     <entry key='gps103.port'>5001</entry>
