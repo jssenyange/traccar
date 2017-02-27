@@ -35,7 +35,6 @@ public class CommandResource extends BaseResource {
     public Response add(Command entity) {
         checkRememberMeLogin();
         Context.getPermissionsManager().checkReadonly(getUserId());
-        Context.getPermissionsManager().checkDeviceReadonly(getUserId());
         Context.getPermissionsManager().checkDevice(getUserId(), entity.getDeviceId());
         Context.getConnectionManager().getActiveDevice(entity.getDeviceId()).sendCommand(entity);
         return Response.ok(entity).build();
