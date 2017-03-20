@@ -36,6 +36,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.UnsupportedEncodingException;
 import java.sql.SQLException;
 import java.util.Date;
 
@@ -54,8 +55,9 @@ public class SessionResource extends BaseResource {
 
     @PermitAll
     @GET
-    public User get(@QueryParam("token") String token) throws SQLException {
+    public User get(@QueryParam("token") String token) throws SQLException, UnsupportedEncodingException {
         Long userId = (Long) request.getSession().getAttribute(USER_ID_KEY);
+
         if (userId != null) {
             Context.getPermissionsManager().checkUserEnabled(userId);
             return Context.getPermissionsManager().getUser(userId);

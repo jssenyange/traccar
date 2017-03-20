@@ -59,12 +59,17 @@ public class SmppClient {
     private Integer reconnectionDelay;
 
     private String sourceAddress;
+    private String commandSourceAddress;
     private int submitTimeout;
-    private String charsetName;
-    private byte dataCoding;
+    private String notificationsCharsetName;
+    private byte notificationsDataCoding;
+    private String commandsCharsetName;
+    private byte commandsDataCoding;
 
     private byte sourceTon;
     private byte sourceNpi;
+    private byte commandSourceTon;
+    private byte commandSourceNpi;
 
     private byte destTon;
     private byte destNpi;
@@ -82,13 +87,23 @@ public class SmppClient {
         sessionConfig.getLoggingOptions().setLogPdu(Context.getConfig().getBoolean("sms.smpp.logPdu"));
 
         sourceAddress = Context.getConfig().getString("sms.smpp.sourceAddress", "");
+        commandSourceAddress = Context.getConfig().getString("sms.smpp.commandSourceAddress", sourceAddress);
         submitTimeout = Context.getConfig().getInteger("sms.smpp.submitTimeout", 10000);
 
-        charsetName = Context.getConfig().getString("sms.smpp.charsetName", CharsetUtil.NAME_UCS_2);
-        dataCoding = (byte) Context.getConfig().getInteger("sms.smpp.dataCoding", SmppConstants.DATA_CODING_UCS2);
+        notificationsCharsetName = Context.getConfig().getString("sms.smpp.notificationsCharset",
+                CharsetUtil.NAME_UCS_2);
+        notificationsDataCoding = (byte) Context.getConfig().getInteger("sms.smpp.notificationsDataCoding",
+                SmppConstants.DATA_CODING_UCS2);
+        commandsCharsetName = Context.getConfig().getString("sms.smpp.commandsCharset",
+                CharsetUtil.NAME_GSM);
+        commandsDataCoding = (byte) Context.getConfig().getInteger("sms.smpp.commandsDataCoding",
+                SmppConstants.DATA_CODING_DEFAULT);
+
 
         sourceTon = (byte) Context.getConfig().getInteger("sms.smpp.sourceTon", SmppConstants.TON_ALPHANUMERIC);
+        commandSourceTon = (byte) Context.getConfig().getInteger("sms.smpp.commandSourceTon", sourceTon);
         sourceNpi = (byte) Context.getConfig().getInteger("sms.smpp.sourceNpi", SmppConstants.NPI_UNKNOWN);
+        commandSourceNpi = (byte) Context.getConfig().getInteger("sms.smpp.commandSourceNpi", sourceNpi);
 
         destTon = (byte) Context.getConfig().getInteger("sms.smpp.destTon", SmppConstants.TON_INTERNATIONAL);
         destNpi = (byte) Context.getConfig().getInteger("sms.smpp.destNpi", SmppConstants.NPI_E164);
@@ -140,17 +155,19 @@ public class SmppClient {
             smppSession = clientBootstrap.bind(sessionConfig, sessionHandler);
             stopReconnectionkTask();
             runEnquireLinkTask();
-            Log.info("Smpp session connected");
+            Log.info("SMPP session connected");
         } catch (SmppTimeoutException | SmppChannelException
                 | UnrecoverablePduException | InterruptedException error) {
-            Log.warning("Unable to connect to smpp server: ", error);
+            Log.warning("Unable to connect to SMPP server: ", error);
         }
     }
 
     public void scheduleReconnect() {
-        reconnectionTask = reconnectionExecutor.scheduleWithFixedDelay(
-                new ReconnectionTask(this),
-                reconnectionDelay, reconnectionDelay, TimeUnit.MILLISECONDS);
+        if (reconnectionTask == null || reconnectionTask.isDone()) {
+            reconnectionTask = reconnectionExecutor.scheduleWithFixedDelay(
+                    new ReconnectionTask(this),
+                    reconnectionDelay, reconnectionDelay, TimeUnit.MILLISECONDS);
+        }
     }
 
     private void stopReconnectionkTask() {
@@ -178,37 +195,43 @@ public class SmppClient {
 
     private void destroySession() {
         if (smppSession != null) {
-            Log.debug("Cleaning up smpp session... ");
+            Log.debug("Cleaning up SMPP session... ");
             smppSession.destroy();
             smppSession = null;
         }
     }
 
-    public synchronized void sendMessageSync(String destAddress, String message) throws RecoverablePduException,
-            UnrecoverablePduException, SmppTimeoutException, SmppChannelException, InterruptedException {
+    public synchronized void sendMessageSync(String destAddress, String message, boolean command)
+            throws RecoverablePduException, UnrecoverablePduException, SmppTimeoutException, SmppChannelException,
+            InterruptedException, IllegalStateException {
         if (getSession() != null && getSession().isBound()) {
-            byte[] textBytes = CharsetUtil.encode(message, charsetName);
-
             SubmitSm submit = new SubmitSm();
-            submit.setSourceAddress(new Address(sourceTon, sourceNpi, sourceAddress));
-            submit.setDestAddress(new Address(destTon, destNpi, destAddress));
-            submit.setDataCoding(dataCoding);
+            byte[] textBytes;
+            textBytes = CharsetUtil.encode(message, command ? commandsCharsetName : notificationsCharsetName);
+            submit.setDataCoding(command ? commandsDataCoding : notificationsDataCoding);
             submit.setShortMessage(textBytes);
+            submit.setSourceAddress(command ? new Address(commandSourceTon, commandSourceNpi, commandSourceAddress)
+                    : new Address(sourceTon, sourceNpi, sourceAddress));
+            submit.setDestAddress(new Address(destTon, destNpi, destAddress));
             SubmitSmResp submitResponce = getSession().submit(submit, submitTimeout);
-            Log.debug("SMS submited, msg_id: " + submitResponce.getMessageId());
+            if (submitResponce.getCommandStatus() == SmppConstants.STATUS_OK) {
+                Log.debug("SMS submitted, message id: " + submitResponce.getMessageId());
+            } else {
+                throw new IllegalStateException(submitResponce.getResultMessage());
+            }
         } else {
-            throw new SmppChannelException("Smpp session is not connected");
+            throw new SmppChannelException("SMPP session is not connected");
         }
     }
 
-    public void sendMessageAsync(final String destAddress, final String message) {
+    public void sendMessageAsync(final String destAddress, final String message, final boolean command) {
         executorService.execute(new Runnable() {
             @Override
             public void run() {
                 try {
-                    sendMessageSync(destAddress, message);
+                    sendMessageSync(destAddress, message, command);
                 } catch (InterruptedException | RecoverablePduException | UnrecoverablePduException
-                        | SmppTimeoutException | SmppChannelException error) {
+                        | SmppTimeoutException | SmppChannelException | IllegalStateException error) {
                     Log.warning(error);
                 }
             }
