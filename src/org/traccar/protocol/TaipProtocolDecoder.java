@@ -18,6 +18,7 @@ package org.traccar.protocol;
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
+import org.traccar.helper.Checksum;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.DateUtil;
 import org.traccar.helper.Parser;
@@ -50,8 +51,8 @@ public class TaipProtocolDecoder extends BaseProtocolDecoder {
             .or()
             .expression("(?:RGP|RCQ|RBR)")       // type
             .number("(?:dd)?")
-            .number("(dd)(dd)(dd)")              // date
-            .number("(dd)(dd)(dd)")              // time
+            .number("(dd)(dd)(dd)")              // date (mmddyy)
+            .number("(dd)(dd)(dd)")              // time (hhmmss)
             .groupEnd()
             .number("([-+]dd)(d{5})")            // latitude
             .number("([-+]ddd)(d{5})")           // longitude
@@ -108,10 +109,7 @@ public class TaipProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            position.setTime(dateBuilder.getDate());
+            position.setTime(parser.nextDateTime(Parser.DateTimeFormat.DMY_HMS));
         }
 
         position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_DEG));
@@ -138,6 +136,10 @@ public class TaipProtocolDecoder extends BaseProtocolDecoder {
             attributes = sentence.substring(beginIndex, endIndex).split(";");
         }
 
+        String uniqueId = null;
+        DeviceSession deviceSession = null;
+        String messageIndex = null;
+
         if (attributes != null) {
             for (String attribute : attributes) {
                 int index = attribute.indexOf('=');
@@ -147,12 +149,10 @@ public class TaipProtocolDecoder extends BaseProtocolDecoder {
                     switch (key) {
 
                         case "id":
-                            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, value);
+                            uniqueId = value;
+                            deviceSession = getDeviceSession(channel, remoteAddress, value);
                             if (deviceSession != null) {
                                 position.setDeviceId(deviceSession.getDeviceId());
-                            }
-                            if (sendResponse && channel != null) {
-                                channel.write(value);
                             }
                             break;
 
@@ -173,13 +173,26 @@ public class TaipProtocolDecoder extends BaseProtocolDecoder {
                             break;
 
                     }
+                } else if (attribute.startsWith("#")) {
+                    messageIndex = attribute;
                 }
             }
         }
 
-        if (position.getDeviceId() != 0) {
+        if (deviceSession != null) {
+            if (sendResponse && channel != null) {
+                if (messageIndex != null) {
+                    String response = ">ACK;" + messageIndex + ";ID=" + uniqueId + ";";
+                    response += Checksum.nmea(response) + "<";
+                    channel.write(response);
+                } else {
+                    channel.write(uniqueId);
+                }
+            }
+
             return position;
         }
+
         return null;
     }
 

@@ -20,7 +20,6 @@ import org.traccar.BaseProtocolDecoder;
 import org.traccar.Context;
 import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
-import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
@@ -30,6 +29,7 @@ import org.traccar.model.Position;
 import org.traccar.model.WifiAccessPoint;
 
 import java.net.SocketAddress;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -47,8 +47,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("([0-9A-Z]{2}xxxx),")        // protocol version
             .number("(d{15}|x{14}),")            // imei
             .any().text(",")
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd),")             // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd),")             // time (hhmmss)
             .number("(xxxx)")                    // counter
             .text("$").optional()
             .compile();
@@ -86,8 +86,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("[-+]dddd,")                 // timezone
             .expression("[01],")                 // daylight saving
             .groupEnd()
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd),")             // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd),")             // time (hhmmss)
             .number("(xxxx)")                    // counter
             .text("$").optional()
             .compile();
@@ -100,8 +100,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .expression("([^,]*),")              // device type
             .number("(xxxx),")                   // firmware version
             .number("(xxxx),")                   // hardware version
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd),")             // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd),")             // time (hhmmss)
             .number("(xxxx)")                    // counter
             .text("$").optional()
             .compile();
@@ -113,8 +113,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("(-?d{1,5}.d)?,")            // altitude
             .number("(-?d{1,3}.d{6})?,")         // longitude
             .number("(-?d{1,2}.d{6})?,")         // latitude
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .groupBegin()
             .number("(0ddd)?,")                  // mcc
@@ -158,8 +158,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+),")                     // odometer
             .expression(PATTERN_LOCATION.pattern())
             .number("(d{1,7}.d)?,")              // odometer
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -191,8 +191,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("(?:d+.?d*|Inf|NaN)?,")      // fuel consumption
             .number("(d+)?,")                    // fuel level
             .groupEnd()
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -207,8 +207,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .expression(PATTERN_LOCATION.pattern())
             .number("(d{5}:dd:dd)?,")            // hour meter
             .number("(d{1,7}.d)?,")              // odometer
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -225,8 +225,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .expression(PATTERN_LOCATION.pattern())
             .number("(d+.d),")                   // odometer
             .text(",,,,")
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -240,8 +240,21 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+),")                     // count
             .number("((?:x{12},-?d+,,,,)+),,,,") // wifi
             .number("(d{1,3}),")                 // battery
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
+            .text(",")
+            .number("(xxxx)")                    // count number
+            .text("$").optional()
+            .compile();
+
+    private static final Pattern PATTERN_GSM = new PatternBuilder()
+            .text("+RESP:GTGSM,")
+            .number("(?:[0-9A-Z]{2}xxxx)?,")     // protocol version
+            .number("(d{15}|x{14}),")            // imei
+            .expression("(?:STR|CTN|NMR|RTL),")  // fix type
+            .expression("(.*)")                  // cells
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -262,8 +275,8 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .or()
             .number("(d{1,7}.d)?,")              // odometer
             .groupEnd()
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -281,16 +294,16 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             .number("(-?d{1,5}.d)?,")            // altitude
             .number("(-?d{1,3}.d{6})?,")         // longitude
             .number("(-?d{1,2}.d{6})?,")         // latitude
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(0ddd),")                   // mcc
             .number("(0ddd),")                   // mnc
             .number("(xxxx),")                   // lac
             .number("(xxxx),").optional(4)       // cell
             .any()
-            .number("(dddd)(dd)(dd)")            // date
-            .number("(dd)(dd)(dd)").optional(2)  // time
+            .number("(dddd)(dd)(dd)")            // date (yyyymmdd)
+            .number("(dd)(dd)(dd)").optional(2)  // time (hhmmss)
             .text(",")
             .number("(xxxx)")                    // count number
             .text("$").optional()
@@ -313,10 +326,7 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
                 Position position = new Position();
                 position.setProtocol(getProtocolName());
                 position.setDeviceId(deviceSession.getDeviceId());
-                DateBuilder dateBuilder = new DateBuilder()
-                        .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                        .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-                getLastLocation(position, dateBuilder.getDate());
+                getLastLocation(position, parser.nextDateTime());
                 position.setValid(false);
                 position.set(Position.KEY_RESULT, "Command " + type + " accepted");
                 return position;
@@ -360,11 +370,7 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         position.set(Position.KEY_INPUT, parser.next());
         position.set(Position.KEY_OUTPUT, parser.next());
 
-        DateBuilder dateBuilder = new DateBuilder()
-                .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-
-        getLastLocation(position, dateBuilder.getDate());
+        getLastLocation(position, parser.nextDateTime());
 
         position.set(Position.KEY_INDEX, parser.nextInt(16));
 
@@ -390,11 +396,7 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         position.set(Position.KEY_VERSION_FW, parser.nextInt(16));
         position.set(Position.KEY_VERSION_HW, parser.nextInt(16));
 
-        DateBuilder dateBuilder = new DateBuilder()
-                .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-
-        getLastLocation(position, dateBuilder.getDate());
+        getLastLocation(position, parser.nextDateTime());
 
         return position;
     }
@@ -412,11 +414,7 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
             position.setValid(true);
             position.setLongitude(parser.nextDouble());
             position.setLatitude(parser.nextDouble());
-
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            position.setTime(dateBuilder.getDate());
+            position.setTime(parser.nextDateTime());
         } else {
             getLastLocation(position, null);
         }
@@ -463,11 +461,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         position.set(Position.KEY_ODOMETER, parser.nextDouble() * 1000);
 
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            if (!position.getOutdated() && position.getFixTime().after(dateBuilder.getDate())) {
-                position.setTime(dateBuilder.getDate());
+            Date date = parser.nextDateTime();
+            if (!position.getOutdated() && position.getFixTime().after(date)) {
+                position.setTime(date);
             }
         }
 
@@ -537,11 +533,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
 
         // workaround for wrong location time
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            if (!position.getOutdated() && position.getFixTime().after(dateBuilder.getDate())) {
-                position.setTime(dateBuilder.getDate());
+            Date date = parser.nextDateTime();
+            if (!position.getOutdated() && position.getFixTime().after(date)) {
+                position.setTime(date);
             }
         }
 
@@ -569,11 +563,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         position.set(Position.KEY_ODOMETER, parser.nextDouble() * 1000);
 
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            if (!position.getOutdated() && position.getFixTime().after(dateBuilder.getDate())) {
-                position.setTime(dateBuilder.getDate());
+            Date date = parser.nextDateTime();
+            if (!position.getOutdated() && position.getFixTime().after(date)) {
+                position.setTime(date);
             }
         }
 
@@ -602,11 +594,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         position.set(Position.KEY_ODOMETER, parser.nextDouble() * 1000);
 
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            if (!position.getOutdated() && position.getFixTime().after(dateBuilder.getDate())) {
-                position.setTime(dateBuilder.getDate());
+            Date date = parser.nextDateTime();
+            if (!position.getOutdated() && position.getFixTime().after(date)) {
+                position.setTime(date);
             }
         }
 
@@ -647,6 +637,40 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         return position;
     }
 
+    private Object decodeGsm(Channel channel, SocketAddress remoteAddress, String sentence) {
+        Parser parser = new Parser(PATTERN_GSM, sentence);
+        if (!parser.matches()) {
+            return null;
+        }
+
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
+            return null;
+        }
+
+        Position position = new Position();
+        position.setProtocol(getProtocolName());
+        position.setDeviceId(deviceSession.getDeviceId());
+
+        getLastLocation(position, null);
+
+        Network network = new Network();
+
+        String[] data = parser.next().split(",");
+        for (int i = 0; i < 6; i++) {
+            if (!data[i * 6].isEmpty()) {
+                network.addCellTower(CellTower.from(
+                        Integer.parseInt(data[i * 6]), Integer.parseInt(data[i * 6 + 1]),
+                        Integer.parseInt(data[i * 6 + 2], 16), Integer.parseInt(data[i * 6 + 3], 16),
+                        Integer.parseInt(data[i * 6 + 4])));
+            }
+        }
+
+        position.setNetwork(network);
+
+        return position;
+    }
+
     private Object decodeOther(Channel channel, SocketAddress remoteAddress, String sentence, String type) {
         Parser parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
@@ -678,11 +702,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
 
         // workaround for wrong location time
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            if (!position.getOutdated() && position.getFixTime().after(dateBuilder.getDate())) {
-                position.setTime(dateBuilder.getDate());
+            Date date = parser.nextDateTime();
+            if (!position.getOutdated() && position.getFixTime().after(date)) {
+                position.setTime(date);
             }
         }
 
@@ -724,10 +746,7 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            position.setTime(dateBuilder.getDate());
+            position.setTime(parser.nextDateTime());
         }
 
         if (parser.hasNext(4)) {
@@ -736,11 +755,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if (parser.hasNext(6)) {
-            DateBuilder dateBuilder = new DateBuilder()
-                    .setDate(parser.nextInt(), parser.nextInt(), parser.nextInt())
-                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
-            if (!position.getOutdated() && position.getFixTime().after(dateBuilder.getDate())) {
-                position.setTime(dateBuilder.getDate());
+            Date date = parser.nextDateTime();
+            if (!position.getOutdated() && position.getFixTime().after(date)) {
+                position.setTime(date);
             }
         }
 
@@ -797,6 +814,9 @@ public class Gl200ProtocolDecoder extends BaseProtocolDecoder {
                     break;
                 case "WIF":
                     result = decodeWif(channel, remoteAddress, sentence);
+                    break;
+                case "GSM":
+                    result = decodeGsm(channel, remoteAddress, sentence);
                     break;
                 case "VER":
                     result = decodeVer(channel, remoteAddress, sentence);

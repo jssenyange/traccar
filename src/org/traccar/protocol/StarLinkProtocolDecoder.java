@@ -91,19 +91,22 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position();
         position.setProtocol(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
+        position.setValid(true);
 
         position.set(Position.KEY_INDEX, parser.nextInt());
 
         String[] data = parser.next().split(",");
         Integer lac = null, cid = null;
+        int event = 0;
 
         for (int i = 0; i < Math.min(data.length, dataTags.length); i++) {
             switch (dataTags[i]) {
                 case "#EDT#":
                     position.setDeviceTime(dateFormat.parse(data[i]));
                     break;
-                case "EID":
-                    position.set(Position.KEY_EVENT, data[i]);
+                case "#EID#":
+                    event = Integer.parseInt(data[i]);
+                    position.set(Position.KEY_EVENT, event);
                     break;
                 case "#PDT#":
                     position.setFixTime(dateFormat.parse(data[i]));
@@ -121,7 +124,7 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                     position.setCourse(Integer.parseInt(data[i]));
                     break;
                 case "#ODO#":
-                    position.set(Position.KEY_ODOMETER, Integer.parseInt(data[i]));
+                    position.set(Position.KEY_ODOMETER, Long.parseLong(data[i]) * 1000);
                     break;
                 case "#IN1#":
                     position.set(Position.PREFIX_IN + 1, Integer.parseInt(data[i]));
@@ -175,6 +178,10 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
 
         if (lac != null && cid != null) {
             position.setNetwork(new Network(CellTower.fromLacCid(lac, cid)));
+        }
+
+        if (event == 20) {
+            position.set(Position.KEY_RFID, data[data.length - 1]);
         }
 
         return position;
