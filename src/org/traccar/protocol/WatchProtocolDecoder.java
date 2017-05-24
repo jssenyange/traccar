@@ -160,13 +160,14 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
 
                     getLastLocation(position, null);
 
-                    position.set(Position.KEY_BATTERY, values[3]);
+                    position.set(Position.KEY_BATTERY_LEVEL, Integer.parseInt(values[3]));
 
                     return position;
                 }
             }
 
-        } else if (type.equals("UD") || type.equals("UD2") || type.equals("AL")) {
+        } else if (type.equals("UD") || type.equals("UD2") || type.equals("UD3")
+                || type.equals("AL") || type.equals("WT")) {
 
             if (type.equals("AL")) {
                 sendResponse(channel, manufacturer, id, "AL");
@@ -186,17 +187,17 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
             position.setValid(parser.next().equals("A"));
             position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_HEM));
             position.setLongitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_HEM));
-            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
-            position.setCourse(parser.nextDouble());
-            position.setAltitude(parser.nextDouble());
+            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble(0)));
+            position.setCourse(parser.nextDouble(0));
+            position.setAltitude(parser.nextDouble(0));
 
-            position.set(Position.KEY_SATELLITES, parser.nextInt());
-            position.set(Position.KEY_RSSI, parser.nextInt());
-            position.set(Position.KEY_BATTERY, parser.nextInt());
+            position.set(Position.KEY_SATELLITES, parser.nextInt(0));
+            position.set(Position.KEY_RSSI, parser.nextInt(0));
+            position.set(Position.KEY_BATTERY_LEVEL, parser.nextInt(0));
 
-            position.set("steps", parser.nextInt());
+            position.set("steps", parser.nextInt(0));
 
-            position.set(Position.KEY_ALARM, decodeAlarm(parser.nextInt(16)));
+            position.set(Position.KEY_ALARM, decodeAlarm(parser.nextHexInt(0)));
 
             decodeTail(position, parser.next());
 
@@ -206,7 +207,7 @@ public class WatchProtocolDecoder extends BaseProtocolDecoder {
 
             sendResponse(channel, manufacturer, id, "TKQ");
 
-        } else if (type.equals("PULSE")) {
+        } else if (type.equals("PULSE") || type.equals("heart")) {
 
             Position position = new Position();
             position.setProtocol(getProtocolName());

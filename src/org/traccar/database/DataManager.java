@@ -40,15 +40,19 @@ import org.traccar.helper.Log;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.traccar.model.AttributeAlias;
+import org.traccar.model.AttributePermission;
 import org.traccar.model.Calendar;
 import org.traccar.model.CalendarPermission;
+import org.traccar.model.Attribute;
 import org.traccar.model.Device;
 import org.traccar.model.DeviceGeofence;
+import org.traccar.model.DeviceAttribute;
 import org.traccar.model.DevicePermission;
 import org.traccar.model.Event;
 import org.traccar.model.Geofence;
 import org.traccar.model.GeofencePermission;
 import org.traccar.model.Group;
+import org.traccar.model.GroupAttribute;
 import org.traccar.model.GroupGeofence;
 import org.traccar.model.GroupPermission;
 import org.traccar.model.Notification;
@@ -310,11 +314,15 @@ public class DataManager {
                 .executeQuery(Position.class);
     }
 
-    public void clearPositionsHistory() throws SQLException {
-        long historyDays = config.getInteger("database.positionsHistoryDays");
+    public void clearHistory() throws SQLException {
+        long historyDays = config.getInteger("database.historyDays");
         if (historyDays != 0) {
+            Date timeLimit = new Date(System.currentTimeMillis() - historyDays * 24 * 3600 * 1000);
             QueryBuilder.create(dataSource, getQuery("database.deletePositions"))
-                    .setDate("serverTime", new Date(System.currentTimeMillis() - historyDays * 24 * 3600 * 1000))
+                    .setDate("serverTime", timeLimit)
+                    .executeUpdate();
+            QueryBuilder.create(dataSource, getQuery("database.deleteEvents"))
+                    .setDate("serverTime", timeLimit)
                     .executeUpdate();
         }
     }
@@ -597,6 +605,86 @@ public class DataManager {
     public void deleteUserPersistentLogins(long userId) throws SQLException {
         QueryBuilder.create(dataSource, getQuery("database.deleteUserPersistentLogins"))
                 .setLong("userId", userId)
+                .executeUpdate();
+    }
+
+    public Collection<Attribute> getAttributes() throws SQLException {
+        return QueryBuilder.create(dataSource, getQuery("database.selectAttributes"))
+                .executeQuery(Attribute.class);
+    }
+
+    public void addAttribute(Attribute attribute) throws SQLException {
+        attribute.setId(QueryBuilder.create(dataSource, getQuery("database.insertAttribute"), true)
+                .setObject(attribute)
+                .executeUpdate());
+    }
+
+    public void updateAttribute(Attribute attribute) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.updateAttribute"))
+                .setObject(attribute)
+                .executeUpdate();
+    }
+
+    public void removeAttribute(long computedAttributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.deleteAttribute"))
+                .setLong("id", computedAttributeId)
+                .executeUpdate();
+    }
+
+    public Collection<AttributePermission> getAttributePermissions() throws SQLException {
+        return QueryBuilder.create(dataSource, getQuery("database.selectAttributePermissions"))
+                .executeQuery(AttributePermission.class);
+    }
+
+    public void linkAttribute(long userId, long attributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.linkAttribute"))
+                .setLong("userId", userId)
+                .setLong("attributeId", attributeId)
+                .executeUpdate();
+    }
+
+    public void unlinkAttribute(long userId, long attributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.unlinkAttribute"))
+                .setLong("userId", userId)
+                .setLong("attributeId", attributeId)
+                .executeUpdate();
+    }
+
+    public Collection<GroupAttribute> getGroupAttributes() throws SQLException {
+        return QueryBuilder.create(dataSource, getQuery("database.selectGroupAttributes"))
+                .executeQuery(GroupAttribute.class);
+    }
+
+    public void linkGroupAttribute(long groupId, long attributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.linkGroupAttribute"))
+                .setLong("groupId", groupId)
+                .setLong("attributeId", attributeId)
+                .executeUpdate();
+    }
+
+    public void unlinkGroupAttribute(long groupId, long attributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.unlinkGroupAttribute"))
+                .setLong("groupId", groupId)
+                .setLong("attributeId", attributeId)
+                .executeUpdate();
+    }
+
+    public Collection<DeviceAttribute> getDeviceAttributes() throws SQLException {
+        return QueryBuilder.create(dataSource, getQuery("database.selectDeviceAttributes"))
+                .executeQuery(DeviceAttribute.class);
+    }
+
+    public void linkDeviceAttribute(long deviceId, long attributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.linkDeviceAttribute"))
+                .setLong("deviceId", deviceId)
+                .setLong("attributeId", attributeId)
+                .executeUpdate();
+    }
+
+    public void unlinkDeviceAttribute(long deviceId, long attributeId) throws SQLException {
+        QueryBuilder.create(dataSource, getQuery("database.unlinkDeviceAttribute"))
+                .setLong("deviceId", deviceId)
+                .setLong("attributeId", attributeId)
                 .executeUpdate();
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2016 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.handler.logging.LoggingHandler;
 import org.jboss.netty.handler.timeout.IdleStateHandler;
 import org.traccar.events.CommandResultEventHandler;
+import org.traccar.events.FuelDropEventHandler;
 import org.traccar.events.GeofenceEventHandler;
 import org.traccar.events.IgnitionEventHandler;
 import org.traccar.events.MaintenanceEventHandler;
@@ -37,6 +38,8 @@ import org.traccar.events.MotionEventHandler;
 import org.traccar.events.OverspeedEventHandler;
 import org.traccar.events.AlertEventHandler;
 import org.traccar.helper.Log;
+import org.traccar.processing.ComputedAttributesHandler;
+import org.traccar.processing.CopyAttributesHandler;
 
 import java.net.InetSocketAddress;
 
@@ -52,9 +55,11 @@ public abstract class BasePipelineFactory implements ChannelPipelineFactory {
     private GeolocationHandler geolocationHandler;
     private HemisphereHandler hemisphereHandler;
     private CopyAttributesHandler copyAttributesHandler;
+    private ComputedAttributesHandler computedAttributesHandler;
 
     private CommandResultEventHandler commandResultEventHandler;
     private OverspeedEventHandler overspeedEventHandler;
+    private FuelDropEventHandler fuelDropEventHandler;
     private MotionEventHandler motionEventHandler;
     private GeofenceEventHandler geofenceEventHandler;
     private AlertEventHandler alertEventHandler;
@@ -112,9 +117,12 @@ public abstract class BasePipelineFactory implements ChannelPipelineFactory {
     public BasePipelineFactory(TrackerServer server, String protocol) {
         this.server = server;
 
-        timeout = Context.getConfig().getInteger(protocol + ".timeout", 0);
+        timeout = Context.getConfig().getInteger(protocol + ".timeout");
         if (timeout == 0) {
-            timeout = Context.getConfig().getInteger(protocol + ".resetDelay", 0); // temporary
+            timeout = Context.getConfig().getInteger(protocol + ".resetDelay"); // temporary
+            if (timeout == 0) {
+                timeout = Context.getConfig().getInteger("server.timeout");
+            }
         }
 
         if (Context.getConfig().getBoolean("filter.enable")) {
@@ -148,27 +156,18 @@ public abstract class BasePipelineFactory implements ChannelPipelineFactory {
             copyAttributesHandler = new CopyAttributesHandler();
         }
 
+        if (Context.getConfig().getBoolean("processing.computedAttributes.enable")) {
+            computedAttributesHandler = new ComputedAttributesHandler();
+        }
+
         if (Context.getConfig().getBoolean("event.enable")) {
             commandResultEventHandler = new CommandResultEventHandler();
-
-            if (Context.getConfig().getBoolean("event.overspeedHandler")) {
-                overspeedEventHandler = new OverspeedEventHandler();
-            }
-
-            if (Context.getConfig().getBoolean("event.motionHandler")) {
-                motionEventHandler = new MotionEventHandler();
-            }
-        }
-        if (Context.getConfig().getBoolean("event.geofenceHandler")) {
+            overspeedEventHandler = new OverspeedEventHandler();
+            fuelDropEventHandler = new FuelDropEventHandler();
+            motionEventHandler = new MotionEventHandler();
             geofenceEventHandler = new GeofenceEventHandler();
-        }
-        if (Context.getConfig().getBoolean("event.alertHandler")) {
             alertEventHandler = new AlertEventHandler();
-        }
-        if (Context.getConfig().getBoolean("event.ignitionHandler")) {
             ignitionEventHandler = new IgnitionEventHandler();
-        }
-        if (Context.getConfig().getBoolean("event.maintenanceHandler")) {
             maintenanceEventHandler = new MaintenanceEventHandler();
         }
     }
@@ -217,6 +216,10 @@ public abstract class BasePipelineFactory implements ChannelPipelineFactory {
             pipeline.addLast("copyAttributes", copyAttributesHandler);
         }
 
+        if (computedAttributesHandler != null) {
+            pipeline.addLast("computedAttributes", computedAttributesHandler);
+        }
+
         if (Context.getDataManager() != null) {
             pipeline.addLast("dataHandler", new DefaultDataHandler());
         }
@@ -231,6 +234,10 @@ public abstract class BasePipelineFactory implements ChannelPipelineFactory {
 
         if (overspeedEventHandler != null) {
             pipeline.addLast("OverspeedEventHandler", overspeedEventHandler);
+        }
+
+        if (fuelDropEventHandler != null) {
+            pipeline.addLast("FuelDropEventHandler", fuelDropEventHandler);
         }
 
         if (motionEventHandler != null) {

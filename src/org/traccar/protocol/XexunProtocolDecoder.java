@@ -17,11 +17,13 @@ package org.traccar.protocol;
 
 import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
+import org.traccar.Context;
 import org.traccar.DeviceSession;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.model.Position;
+import org.traccar.helper.UnitsConverter;
 
 import java.net.SocketAddress;
 import java.util.regex.Pattern;
@@ -104,15 +106,24 @@ public class XexunProtocolDecoder extends BaseProtocolDecoder {
         }
 
         DateBuilder dateBuilder = new DateBuilder()
-                .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+                .setTime(parser.nextInt(0), parser.nextInt(0), parser.nextInt(0));
 
         position.setValid(parser.next().equals("A"));
         position.setLatitude(parser.nextCoordinate());
         position.setLongitude(parser.nextCoordinate());
-        position.setSpeed(parser.nextDouble());
-        position.setCourse(parser.nextDouble());
 
-        dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
+        switch (Context.getConfig().getString(getProtocolName() + ".speed", "kn")) {
+            case "kmh":
+                position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble(0)));
+                break;
+            default:
+                position.setSpeed(parser.nextDouble(0));
+                break;
+        }
+
+        position.setCourse(parser.nextDouble(0));
+
+        dateBuilder.setDateReverse(parser.nextInt(0), parser.nextInt(0), parser.nextInt(0));
         position.setTime(dateBuilder.getDate());
 
         position.set("signal", parser.next());
@@ -125,11 +136,11 @@ public class XexunProtocolDecoder extends BaseProtocolDecoder {
         position.setDeviceId(deviceSession.getDeviceId());
 
         if (full) {
-            position.set(Position.KEY_SATELLITES, parser.next().replaceFirst("^0*(?![\\.$])", ""));
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
 
-            position.setAltitude(parser.nextDouble());
+            position.setAltitude(parser.nextDouble(0));
 
-            position.set(Position.KEY_POWER, parser.nextDouble());
+            position.set(Position.KEY_POWER, parser.nextDouble(0));
         }
 
         return position;

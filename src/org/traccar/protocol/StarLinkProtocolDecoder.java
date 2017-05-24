@@ -83,7 +83,7 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        int type = parser.nextInt();
+        int type = parser.nextInt(0);
         if (type != MSG_EVENT_REPORT) {
             return null;
         }
@@ -93,13 +93,16 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
         position.setDeviceId(deviceSession.getDeviceId());
         position.setValid(true);
 
-        position.set(Position.KEY_INDEX, parser.nextInt());
+        position.set(Position.KEY_INDEX, parser.nextInt(0));
 
         String[] data = parser.next().split(",");
         Integer lac = null, cid = null;
         int event = 0;
 
         for (int i = 0; i < Math.min(data.length, dataTags.length); i++) {
+            if (data[i].isEmpty()) {
+                continue;
+            }
             switch (dataTags[i]) {
                 case "#EDT#":
                     position.setDeviceTime(dateFormat.parse(data[i]));
@@ -151,10 +154,14 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                     position.set(Position.PREFIX_OUT + 4, Integer.parseInt(data[i]));
                     break;
                 case "#LAC#":
-                    lac = Integer.parseInt(data[i]);
+                    if (!data[i].isEmpty()) {
+                        lac = Integer.parseInt(data[i]);
+                    }
                     break;
                 case "#CID#":
-                    cid = Integer.parseInt(data[i]);
+                    if (!data[i].isEmpty()) {
+                        cid = Integer.parseInt(data[i]);
+                    }
                     break;
                 case "#VIN#":
                     position.set(Position.KEY_POWER, Double.parseDouble(data[i]));
@@ -174,6 +181,10 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                 default:
                     break;
             }
+        }
+
+        if (position.getFixTime() == null) {
+            getLastLocation(position, null);
         }
 
         if (lac != null && cid != null) {

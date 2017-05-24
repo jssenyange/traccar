@@ -35,13 +35,13 @@ public class CguardProtocolDecoder extends BaseProtocolDecoder {
     private static final Pattern PATTERN_NV = new PatternBuilder()
             .text("NV:")
             .number("(dd)(dd)(dd) ")             // date (yymmdd)
-            .number("(dd)(dd)(dd):")             // time (hhmmss)
-            .number("(-?d+.d+):")                // longitude
-            .number("(-?d+.d+):")                // latitude
-            .number("(d+.?d*):")                 // speed
-            .number("(?:NAN|(d+.?d*)):")         // accuracy
-            .number("(?:NAN|(d+.?d*)):")         // course
-            .number("(?:NAN|(d+.?d*))")          // altitude
+            .number("(dd)(dd)(dd)")              // time (hhmmss)
+            .number(":(-?d+.d+)")                // longitude
+            .number(":(-?d+.d+)")                // latitude
+            .number(":(d+.?d*)")                 // speed
+            .number(":(?:NAN|(d+.?d*))")         // accuracy
+            .number(":(?:NAN|(d+.?d*))")         // course
+            .number(":(?:NAN|(d+.?d*))").optional() // altitude
             .compile();
 
     private static final Pattern PATTERN_BC = new PatternBuilder()
@@ -65,14 +65,14 @@ public class CguardProtocolDecoder extends BaseProtocolDecoder {
         position.setTime(parser.nextDateTime());
 
         position.setValid(true);
-        position.setLatitude(parser.nextDouble());
-        position.setLongitude(parser.nextDouble());
-        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
+        position.setLatitude(parser.nextDouble(0));
+        position.setLongitude(parser.nextDouble(0));
+        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble(0)));
 
-        position.setAccuracy(parser.nextDouble());
+        position.setAccuracy(parser.nextDouble(0));
 
-        position.setCourse(parser.nextDouble());
-        position.setAltitude(parser.nextDouble());
+        position.setCourse(parser.nextDouble(0));
+        position.setAltitude(parser.nextDouble(0));
 
         return position;
     }
@@ -102,7 +102,7 @@ public class CguardProtocolDecoder extends BaseProtocolDecoder {
                     position.set(Position.KEY_SATELLITES, Integer.parseInt(value));
                     break;
                 case "BAT1":
-                    position.set(Position.KEY_BATTERY, Integer.parseInt(value) + "%");
+                    position.set(Position.KEY_BATTERY_LEVEL, Integer.parseInt(value));
                     break;
                 case "PWR1":
                     position.set(Position.KEY_POWER, Double.parseDouble(value));

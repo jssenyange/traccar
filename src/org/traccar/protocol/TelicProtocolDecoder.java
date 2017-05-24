@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2016 Anton Tananaev (anton@traccar.org)
+ * Copyright 2014 - 2017 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,59 +50,11 @@ public class TelicProtocolDecoder extends BaseProtocolDecoder {
             .number("(d),")                      // validity
             .number("(d+),")                     // speed
             .number("(d+),")                     // course
-            .number("(d+),")                     // satellites
+            .number("(d+)?,")                    // satellites
             .expression("(?:[^,]*,){7}")
             .number("(d+),")                     // battery
-            .expression("[^,]*,")
-            .number("(d+),")                     // external
             .any()
             .compile();
-
-    @Override
-    protected Object decode(
-            Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
-
-        Parser parser = new Parser(PATTERN, (String) msg);
-        if (!parser.matches()) {
-            return null;
-        }
-
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
-
-        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
-        if (deviceSession == null) {
-            return null;
-        }
-        position.setDeviceId(deviceSession.getDeviceId());
-
-        int event = parser.nextInt();
-        position.set(Position.KEY_TYPE, event);
-
-        position.set(Position.KEY_ALARM, decodeAlarm(event));
-
-        position.setTime(parser.nextDateTime(Parser.DateTimeFormat.DMY_HMS));
-
-        if (parser.hasNext(6)) {
-            position.setLongitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_MIN_MIN));
-            position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_MIN_MIN));
-        }
-
-        if (parser.hasNext(2)) {
-            position.setLongitude(parser.nextDouble() / 10000);
-            position.setLatitude(parser.nextDouble() / 10000);
-        }
-
-        position.setValid(parser.nextInt() != 1);
-        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
-        position.setCourse(parser.nextDouble());
-
-        position.set(Position.KEY_SATELLITES, parser.next());
-        position.set(Position.KEY_BATTERY, 3.4 + parser.nextInt() * 0.00345);
-        position.set(Position.KEY_POWER, 6.0 + parser.nextInt() * 0.125);
-
-        return position;
-    }
 
     private String decodeAlarm(int eventId) {
 
@@ -125,4 +77,59 @@ public class TelicProtocolDecoder extends BaseProtocolDecoder {
                 return null;
         }
     }
+
+    @Override
+    protected Object decode(
+            Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
+
+        Parser parser = new Parser(PATTERN, (String) msg);
+        if (!parser.matches()) {
+            return null;
+        }
+
+        Position position = new Position();
+        position.setProtocol(getProtocolName());
+
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
+        if (deviceSession == null) {
+            return null;
+        }
+        position.setDeviceId(deviceSession.getDeviceId());
+
+        int event = parser.nextInt(0);
+        position.set(Position.KEY_EVENT, event);
+
+        position.set(Position.KEY_ALARM, decodeAlarm(event));
+
+        if (event == 11) {
+            position.set(Position.KEY_IGNITION, true);
+        } else if (event == 12) {
+            position.set(Position.KEY_IGNITION, false);
+        }
+
+        position.setTime(parser.nextDateTime(Parser.DateTimeFormat.DMY_HMS));
+
+        if (parser.hasNext(6)) {
+            position.setLongitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_MIN_MIN));
+            position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_MIN_MIN));
+        }
+
+        if (parser.hasNext(2)) {
+            position.setLongitude(parser.nextDouble(0) / 10000);
+            position.setLatitude(parser.nextDouble(0) / 10000);
+        }
+
+        position.setValid(parser.nextInt(0) != 1);
+        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble(0)));
+        position.setCourse(parser.nextDouble(0));
+
+        if (parser.hasNext()) {
+            position.set(Position.KEY_SATELLITES, parser.nextInt(0));
+        }
+
+        position.set(Position.KEY_BATTERY, parser.nextInt(0));
+
+        return position;
+    }
+
 }

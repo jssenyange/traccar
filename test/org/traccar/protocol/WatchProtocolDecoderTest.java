@@ -11,6 +11,12 @@ public class WatchProtocolDecoderTest extends ProtocolTest {
         WatchProtocolDecoder decoder = new WatchProtocolDecoder(new WatchProtocol());
 
         verifyPosition(decoder, text(
+                "[3G*6005412902*011F*WT,170517,133811,V,18.512200,N,73.7750283,E,0.00,0.0,0.0,0,92,82,4262,0,00000010,2,1,404,22,10125,8301,141,10125,13921,122,5,Skynet,28:c6:8e:be:87:c0,-60,Intel Wi-Fi,4c:60:de:32:3d:38,-70,Nirvanic-2,40:e3:d6:4a:d9:c2,-73,A4-Guest,40:e3:d6:4a:d9:c4,-73,A4Idatix,40:e3:d6:4a:d9:c3,-73,13.8]"));
+
+        verifyPosition(decoder, text(
+                "[3G*8308406279*00CC*UD3,170417,190930,V,54.739618,N,25.273213,E,0.0,323.53,175.1,6,51,83,0,0,00000000,1,1,246,01,200,13242758,51,3,TEO-189835,00:8c:54:58:1d:64,-84,Cgates_7137,78:54:2e:e3:71:37,-85,ASUS,9c:5c:8e:b8:d4:78,-93]"));
+
+        verifyPosition(decoder, text(
                 "[SG*9051004074*0058*AL,120117,145602,V,40.058413,N,76.336618,W,11.519,188,99,00,01,80,0,50,00000000,0,1,0,0,,10]"));
 
         verifyPosition(decoder, text(
@@ -29,7 +35,7 @@ public class WatchProtocolDecoderTest extends ProtocolTest {
         verifyPosition(decoder, text(
                 "[3G*4700222306*011F*UD2,120316,140444,A,48.779045,N, 9.1574736,E,0.57,12.8,0.0,7,28,77,0,0,00000000,2,2,262,1,21041,9067,121,21041,5981,116,5,WG-Superlativ,34:31:c4:c8:a9:22,-67,EasyBox-28E858,18:83:bf:28:e8:f4,-70,MoMaXXg,be:05:43:b7:19:15,-72,MoMaXX2,bc:05:43:b7:19:15,-72,Gastzugang,18:83:bf:28:e8:f5,-72"));
 
-        verifyNothing(decoder, text(
+        verifyNull(decoder, text(
                 "[SG*9081000548*0009*LK,0,100"));
 
         verifyPosition(decoder, text(
@@ -38,13 +44,13 @@ public class WatchProtocolDecoderTest extends ProtocolTest {
         verifyPosition(decoder, text(
                 "[3G*2256002206*0079*UD2,100116,153723,A,38.000000,N,-9.000000,W,0.44,299.3,0.0,7,100,86,0,0,00000008,2,0,268,3,3010,51042,146,3010,51043,132]"));
 
-        verifyNothing(decoder, text(
+        verifyNull(decoder, text(
                 "[3G*8800000015*0003*TKQ"));
 
         verifyPosition(decoder, text(
                 "[3G*4700186508*00B1*UD,301015,084840,V,45.853100,N,14.6224899,E,0.00,0.0,0.0,0,84,61,0,11,00000008,7,255,293,70,60,6453,139,60,6432,139,60,6431,132,60,6457,127,60,16353,126,60,6451,121,60,16352,118"));
 
-        verifyNothing(decoder, text(
+        verifyNull(decoder, text(
                 "[SG*8800000015*0002*LK"));
 
         verifyAttributes(decoder, text(
@@ -65,6 +71,12 @@ public class WatchProtocolDecoderTest extends ProtocolTest {
 
         verifyAttributes(decoder, text(
                 "[CS*8800000015*0008*PULSE,72"));
+
+        verifyAttributes(decoder, text(
+                "[3G*6005412902*0007*heart,0"));
+
+        verifyAttributes(decoder, text(
+                "[3G*6005412902*0008*heart,71"));
 
     }
 

@@ -31,7 +31,7 @@ public class SuntechProtocolDecoderTest extends ProtocolTest {
         verifyPosition(decoder, text(
                 "ST300ALT;205174410;14;712;20110101;00:00:07;00000;+20.593923;-100.336716;000.000;000.00;0;0;0;16.57;000000;81;000000;4.0;0;0.00;0000;0000;0;0"));
 
-        verifyNothing(decoder, text(
+        verifyNull(decoder, text(
                 "SA200ALV;317652"));
         
         verifyPosition(decoder, text(
@@ -78,7 +78,16 @@ public class SuntechProtocolDecoderTest extends ProtocolTest {
         decoder.setProtocolType(1);
 
         verifyPosition(decoder, text(
+                "ST910;Alert;485195;20170409;22:37:41;3be0133057;+24.882410;-107.509152;000.070;000.00;1;286734;72;02;295;05;-415;4912;255;10;10"));
+
+        verifyPosition(decoder, text(
+                "ST910;Location;485195;528;20170410;01:18:57;f1dd134840;+24.787139;-107.434679;000.020;000.00;1;286734;100;1;0;0188;02;295;05;-339;4936;255;4;74"));
+
+        verifyPosition(decoder, text(
                 "ST910;Location;560266;500;20161207;21:33:11;af910be101;-25.504234;-049.278003;000.080;000.00;1;10054889;70;1;1;1311;02;724;06;-317;3041;2;10;92"));
+
+        verifyPosition(decoder, text(
+                "ST910;Emergency;238569;528;20170403;00:02:09;7574160020;+19.661292;-099.144473;000.176;000.00;1;228638;1"));
 
     }
 

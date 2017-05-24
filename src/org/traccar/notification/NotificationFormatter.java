@@ -24,6 +24,7 @@ import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.exception.ResourceNotFoundException;
 import org.apache.velocity.tools.generic.DateTool;
+import org.apache.velocity.tools.generic.NumberTool;
 import org.traccar.Context;
 import org.traccar.helper.Log;
 import org.traccar.model.Device;
@@ -36,7 +37,7 @@ public final class NotificationFormatter {
     private NotificationFormatter() {
     }
 
-    private static VelocityContext prepareContext(long userId, Event event, Position position) {
+    public static VelocityContext prepareContext(long userId, Event event, Position position) {
         Device device = Context.getIdentityManager().getDeviceById(event.getDeviceId());
 
         VelocityContext velocityContext = new VelocityContext();
@@ -51,12 +52,13 @@ public final class NotificationFormatter {
         }
         velocityContext.put("webUrl", Context.getVelocityEngine().getProperty("web.url"));
         velocityContext.put("dateTool", new DateTool());
+        velocityContext.put("numberTool", new NumberTool());
         velocityContext.put("timezone", ReportUtils.getTimezone(userId));
         velocityContext.put("locale", Locale.getDefault());
         return velocityContext;
     }
 
-    private static Template getTemplate(Event event, String path) {
+    public static Template getTemplate(Event event, String path) {
         Template template;
         try {
             template = Context.getVelocityEngine().getTemplate(path + event.getType() + ".vm",

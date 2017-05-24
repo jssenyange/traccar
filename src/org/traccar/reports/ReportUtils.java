@@ -17,6 +17,7 @@
 package org.traccar.reports;
 
 import org.apache.velocity.tools.generic.DateTool;
+import org.apache.velocity.tools.generic.NumberTool;
 import org.jxls.area.Area;
 import org.jxls.builder.xls.XlsCommentAreaBuilder;
 import org.jxls.common.CellRef;
@@ -25,7 +26,6 @@ import org.jxls.transform.Transformer;
 import org.jxls.transform.poi.PoiTransformer;
 import org.jxls.util.TransformerFactory;
 import org.traccar.Context;
-import org.traccar.helper.Log;
 import org.traccar.model.Position;
 
 import java.io.IOException;
@@ -89,24 +89,12 @@ public final class ReportUtils {
 
         if (firstPosition.getAttributes().get(Position.KEY_FUEL_LEVEL) != null
                 && lastPosition.getAttributes().get(Position.KEY_FUEL_LEVEL) != null) {
-            try {
-                switch (firstPosition.getProtocol()) {
-                    case "meitrack":
-                    case "galileo":
-                    case "noran":
-                        BigDecimal v = new BigDecimal(
-                                firstPosition.getAttributes().get(Position.KEY_FUEL_LEVEL).toString());
-                        v = v.subtract(new BigDecimal(
-                                lastPosition.getAttributes().get(Position.KEY_FUEL_LEVEL).toString()));
-                        return v.setScale(2, RoundingMode.HALF_EVEN).toString() + " %";
-                    default:
-                        break;
-                }
-            } catch (Exception error) {
-                Log.warning(error);
-            }
+
+            BigDecimal value = new BigDecimal(firstPosition.getDouble(Position.KEY_FUEL_LEVEL)
+                    - lastPosition.getDouble(Position.KEY_FUEL_LEVEL));
+            return value.setScale(1, RoundingMode.HALF_EVEN).toString();
         }
-        return "-";
+        return null;
     }
 
     public static org.jxls.common.Context initializeContext(long userId) {
@@ -115,6 +103,7 @@ public final class ReportUtils {
         jxlsContext.putVar("speedUnit", getSpeedUnit(userId));
         jxlsContext.putVar("webUrl", Context.getVelocityEngine().getProperty("web.url"));
         jxlsContext.putVar("dateTool", new DateTool());
+        jxlsContext.putVar("numberTool", new NumberTool());
         jxlsContext.putVar("timezone", getTimezone(userId));
         jxlsContext.putVar("locale", Locale.getDefault());
         jxlsContext.putVar("bracketsRegex", "[\\{\\}\"]");
