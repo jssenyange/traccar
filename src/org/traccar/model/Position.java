@@ -37,6 +37,9 @@ public class Position extends Message {
     public static final String KEY_HOURS = "hours";
     public static final String KEY_INPUT = "input";
     public static final String KEY_OUTPUT = "output";
+    public static final String KEY_IMAGE = "image";
+    public static final String KEY_VIDEO = "video";
+    public static final String KEY_AUDIO = "audio";
 
     // The units for the below four KEYs currently vary.
     // The preferred units of measure are specified in the comment for each.
@@ -46,7 +49,6 @@ public class Position extends Message {
     public static final String KEY_FUEL_LEVEL = "fuel"; // liters
     public static final String KEY_FUEL_CONSUMPTION = "fuelConsumption"; // liters/hour
 
-    public static final String KEY_RFID = "rfid";
     public static final String KEY_VERSION_FW = "versionFw";
     public static final String KEY_VERSION_HW = "versionHw";
     public static final String KEY_TYPE = "type";
@@ -66,6 +68,8 @@ public class Position extends Message {
     public static final String KEY_GEOFENCE = "geofence";
     public static final String KEY_ACCELERATION = "acceleration";
     public static final String KEY_DEVICE_TEMP = "deviceTemp"; // celsius
+    public static final String KEY_COOLANT_TEMP = "coolantTemp"; // celsius
+    public static final String KEY_ENGINE_LOAD = "engineLoad";
     public static final String KEY_OPERATOR = "operator";
     public static final String KEY_COMMAND = "command";
     public static final String KEY_BLOCKED = "blocked";
@@ -75,6 +79,8 @@ public class Position extends Message {
     public static final String KEY_OBD_ODOMETER = "obdOdometer"; // meters
 
     public static final String KEY_RESULT = "result";
+
+    public static final String KEY_DRIVER_UNIQUE_ID = "driverUniqueId";
 
     // Start with 1 not 0
     public static final String PREFIX_TEMP = "temp";
@@ -116,6 +122,7 @@ public class Position extends Message {
     public static final String ALARM_FOOT_BRAKE = "footBrake";
     public static final String ALARM_OIL_LEAK = "oilLeak";
     public static final String ALARM_TAMPERING = "tampering";
+    public static final String ALARM_REMOVING = "removing";
 
     private String protocol;
 

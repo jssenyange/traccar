@@ -237,6 +237,18 @@ public class ProtocolTest extends BaseTest {
             Assert.assertTrue(attributes.get(Position.KEY_CHARGE) instanceof Boolean);
         }
 
+        if (attributes.containsKey(Position.KEY_MOTION)) {
+            Assert.assertTrue(attributes.get(Position.KEY_MOTION) instanceof Boolean);
+        }
+
+        if (attributes.containsKey(Position.KEY_ARCHIVE)) {
+            Assert.assertTrue(attributes.get(Position.KEY_ARCHIVE) instanceof Boolean);
+        }
+
+        if (attributes.containsKey(Position.KEY_DRIVER_UNIQUE_ID)) {
+            Assert.assertTrue(attributes.get(Position.KEY_DRIVER_UNIQUE_ID) instanceof String);
+        }
+
         if (position.getNetwork() != null && position.getNetwork().getCellTowers() != null) {
             for (CellTower cellTower : position.getNetwork().getCellTowers()) {
                 checkInteger(cellTower.getMobileCountryCode(), 0, 999);

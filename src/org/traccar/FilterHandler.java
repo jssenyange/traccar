@@ -15,7 +15,6 @@
  */
 package org.traccar;
 
-import org.traccar.helper.DistanceCalculator;
 import org.traccar.helper.Log;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
@@ -84,7 +83,9 @@ public class FilterHandler extends BaseDataHandler {
     }
 
     private boolean filterInvalid(Position position) {
-        return filterInvalid && !position.getValid();
+        return filterInvalid && (!position.getValid()
+           || position.getLatitude() > 90 || position.getLongitude() > 180
+           || position.getLatitude() < -90 || position.getLongitude() < -180);
     }
 
     private boolean filterZero(Position position) {
@@ -92,7 +93,15 @@ public class FilterHandler extends BaseDataHandler {
     }
 
     private boolean filterDuplicate(Position position, Position last) {
-        return filterDuplicate && last != null && position.getFixTime().equals(last.getFixTime());
+        if (filterDuplicate && last != null && position.getFixTime().equals(last.getFixTime())) {
+            for (String key : position.getAttributes().keySet()) {
+                if (!last.getAttributes().containsKey(key)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     private boolean filterFuture(Position position) {
@@ -109,21 +118,16 @@ public class FilterHandler extends BaseDataHandler {
 
     private boolean filterDistance(Position position, Position last) {
         if (filterDistance != 0 && last != null) {
-            double distance = DistanceCalculator.distance(
-                    position.getLatitude(), position.getLongitude(),
-                    last.getLatitude(), last.getLongitude());
-            return distance < filterDistance;
+            return position.getDouble(Position.KEY_DISTANCE) < filterDistance;
         }
         return false;
     }
 
     private boolean filterMaxSpeed(Position position, Position last) {
         if (filterMaxSpeed != 0 && last != null) {
-            double distance = DistanceCalculator.distance(
-                    position.getLatitude(), position.getLongitude(),
-                    last.getLatitude(), last.getLongitude());
+            double distance = position.getDouble(Position.KEY_DISTANCE);
             long time = position.getFixTime().getTime() - last.getFixTime().getTime();
-            return UnitsConverter.knotsFromMps(distance / time) > filterMaxSpeed;
+            return UnitsConverter.knotsFromMps(distance / (time / 1000)) > filterMaxSpeed;
         }
         return false;
     }

@@ -263,7 +263,8 @@ public class AplicomProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if ((selector & 0x0200) != 0) {
-            position.set(Position.KEY_RFID, (((long) buf.readUnsignedShort()) << 32) + buf.readUnsignedInt());
+            position.set(Position.KEY_DRIVER_UNIQUE_ID,
+                    String.valueOf(((long) buf.readUnsignedShort()) << 32) + buf.readUnsignedInt());
         }
 
         if ((selector & 0x0400) != 0) {
@@ -349,6 +350,19 @@ public class AplicomProtocolDecoder extends BaseProtocolDecoder {
 
         if ((selector & 0x0800) != 0) {
             position.set(Position.KEY_VIN, buf.readBytes(18).toString(StandardCharsets.US_ASCII).trim());
+        }
+
+        if ((selector & 0x10000) != 0) {
+            int count = buf.readUnsignedByte();
+            for (int i = 1; i <= count; i++) {
+                ChannelBuffer driver = buf.readBytes(22);
+                int endIndex = driver.indexOf(0, driver.writerIndex(), (byte) 0);
+                if (endIndex < 0) {
+                    endIndex = driver.writerIndex();
+                }
+                position.set("driver" + i, driver.toString(0, endIndex, StandardCharsets.US_ASCII).trim());
+                position.set("driverTime" + i, buf.readUnsignedInt());
+            }
         }
     }
 

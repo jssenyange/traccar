@@ -201,7 +201,7 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
         if (eventData != null && !eventData.isEmpty()) {
             switch (event) {
                 case 37:
-                    position.set(Position.KEY_RFID, eventData);
+                    position.set(Position.KEY_DRIVER_UNIQUE_ID, eventData);
                     break;
                 default:
                     position.set("eventData", eventData);
@@ -218,7 +218,8 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
         if (parser.hasNext()) {
             for (String temp : parser.next().split("\\|")) {
                 int index = Integer.valueOf(temp.substring(0, 2), 16);
-                int value = Integer.valueOf(temp.substring(2), 16);
+                double value = Byte.valueOf(temp.substring(2, 4), 16);
+                value += (value < 0 ? -0.01 : 0.01) * Integer.valueOf(temp.substring(4), 16);
                 position.set(Position.PREFIX_TEMP + index, value);
             }
         }
