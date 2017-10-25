@@ -51,7 +51,7 @@ public class ComputedAttributesHandler extends BaseDataHandler {
     private MapContext prepareContext(Position position) {
         MapContext result = new MapContext();
         if (mapDeviceAttributes) {
-            Device device = Context.getIdentityManager().getDeviceById(position.getDeviceId());
+            Device device = Context.getIdentityManager().getById(position.getDeviceId());
             if (device != null) {
                 for (Object key : device.getAttributes().keySet()) {
                     result.set((String) key, device.getAttributes().get(key));
@@ -86,8 +86,8 @@ public class ComputedAttributesHandler extends BaseDataHandler {
 
     @Override
     protected Position handlePosition(Position position) {
-        Collection<Attribute> attributes = Context.getAttributesManager().getAttributes(
-                Context.getAttributesManager().getAllDeviceAttributes(position.getDeviceId()));
+        Collection<Attribute> attributes = Context.getAttributesManager().getItems(
+                Context.getAttributesManager().getAllDeviceItems(position.getDeviceId()));
         for (Attribute attribute : attributes) {
             if (attribute.getAttribute() != null) {
                 Object result = null;

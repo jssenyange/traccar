@@ -131,22 +131,39 @@ public class EelinkProtocolDecoder extends BaseProtocolDecoder {
 
         position.setValid((buf.readUnsignedByte() & 0x01) != 0);
 
-        if (type == MSG_ALARM) {
+        if (type == MSG_GPS) {
+
+            if (buf.readableBytes() >= 2) {
+                decodeStatus(position, buf.readUnsignedShort());
+            }
+
+            if (buf.readableBytes() >= 2 * 4) {
+
+                position.set(Position.KEY_BATTERY, buf.readUnsignedShort() * 0.001);
+
+                position.set(Position.KEY_RSSI, buf.readUnsignedShort());
+
+                position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort());
+                position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort());
+
+            }
+
+        } else if (type == MSG_ALARM) {
+
             position.set(Position.KEY_ALARM, decodeAlarm(buf.readUnsignedByte()));
-        }
 
-        if (buf.readableBytes() >= 2) {
-            decodeStatus(position, buf.readUnsignedShort());
-        }
+        } else if (type == MSG_STATE) {
 
-        if (buf.readableBytes() >= 2 * 4) {
+            int statusType = buf.readUnsignedByte();
 
-            position.set(Position.KEY_BATTERY, buf.readUnsignedShort() * 0.001);
+            position.set(Position.KEY_EVENT, statusType);
 
-            position.set(Position.KEY_RSSI, buf.readUnsignedShort());
-
-            position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort());
-            position.set(Position.PREFIX_ADC + 2, buf.readUnsignedShort());
+            if (statusType == 0x01 || statusType == 0x02 || statusType == 0x03) {
+                buf.readUnsignedInt(); // device time
+                if (buf.readableBytes() >= 2) {
+                    decodeStatus(position, buf.readUnsignedShort());
+                }
+            }
 
         }
 
@@ -200,6 +217,45 @@ public class EelinkProtocolDecoder extends BaseProtocolDecoder {
             buf.skipBytes(7); // bss2
         }
 
+        if (buf.readableBytes() >= 2) {
+            int status = buf.readUnsignedShort();
+            position.setValid(BitUtil.check(status, 0));
+            if (BitUtil.check(status, 1)) {
+                position.set(Position.KEY_IGNITION, BitUtil.check(status, 2));
+            }
+            position.set(Position.KEY_STATUS, status);
+        }
+
+        if (buf.readableBytes() >= 2) {
+            position.set(Position.KEY_BATTERY, buf.readUnsignedShort() * 0.001);
+        }
+
+        if (buf.readableBytes() >= 4) {
+            position.set(Position.PREFIX_ADC + 0, buf.readUnsignedShort());
+            position.set(Position.PREFIX_ADC + 1, buf.readUnsignedShort());
+        }
+
+        if (buf.readableBytes() >= 4) {
+            position.set(Position.KEY_ODOMETER, buf.readUnsignedInt());
+        }
+
+        if (buf.readableBytes() >= 4) {
+            buf.readUnsignedShort(); // gsm counter
+            buf.readUnsignedShort(); // gps counter
+        }
+
+        if (buf.readableBytes() >= 4) {
+            position.set(Position.KEY_STEPS, buf.readUnsignedShort());
+            buf.readUnsignedShort(); // walking time
+        }
+
+        if (buf.readableBytes() >= 12) {
+            position.set(Position.PREFIX_TEMP + 1, buf.readUnsignedShort() / 256.0);
+            position.set("humidity", buf.readUnsignedShort() * 0.1);
+            position.set("illuminance", buf.readUnsignedInt() / 256.0);
+            position.set("co2", buf.readUnsignedInt());
+        }
+
         return position;
     }
 
@@ -223,6 +279,7 @@ public class EelinkProtocolDecoder extends BaseProtocolDecoder {
             getDeviceSession(channel, remoteAddress, ChannelBuffers.hexDump(buf.readBytes(8)).substring(1));
 
         } else {
+
             DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
             if (deviceSession == null) {
                 return null;
@@ -245,6 +302,7 @@ public class EelinkProtocolDecoder extends BaseProtocolDecoder {
                 return position;
 
             }
+
         }
 
         return null;

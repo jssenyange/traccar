@@ -40,7 +40,7 @@ public final class NotificationFormatter {
 
     public static VelocityContext prepareContext(long userId, Event event, Position position) {
         User user = Context.getPermissionsManager().getUser(userId);
-        Device device = Context.getIdentityManager().getDeviceById(event.getDeviceId());
+        Device device = Context.getIdentityManager().getById(event.getDeviceId());
 
         VelocityContext velocityContext = new VelocityContext();
         velocityContext.put("user", user);
@@ -48,10 +48,12 @@ public final class NotificationFormatter {
         velocityContext.put("event", event);
         if (position != null) {
             velocityContext.put("position", position);
-            velocityContext.put("speedUnits", ReportUtils.getSpeedUnit(userId));
+            velocityContext.put("speedUnit", ReportUtils.getSpeedUnit(userId));
+            velocityContext.put("distanceUnit", ReportUtils.getDistanceUnit(userId));
+            velocityContext.put("volumeUnit", ReportUtils.getVolumeUnit(userId));
         }
         if (event.getGeofenceId() != 0) {
-            velocityContext.put("geofence", Context.getGeofenceManager().getGeofence(event.getGeofenceId()));
+            velocityContext.put("geofence", Context.getGeofenceManager().getById(event.getGeofenceId()));
         }
         String driverUniqueId = event.getString(Position.KEY_DRIVER_UNIQUE_ID);
         if (driverUniqueId != null) {
