@@ -21,6 +21,7 @@ import org.jboss.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
 import org.traccar.helper.BcdUtil;
+import org.traccar.helper.BitBuffer;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
@@ -62,8 +63,9 @@ public class Jt600ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
+        int protocolVersion = 0;
         if (longFormat) {
-            buf.readUnsignedByte(); // protocol
+            protocolVersion = buf.readUnsignedByte();
         }
 
         int version = BitUtil.from(buf.readUnsignedByte(), 4);
@@ -121,6 +123,11 @@ public class Jt600ProtocolDecoder extends BaseProtocolDecoder {
                 cellTower.setSignalStrength((int) buf.readUnsignedByte());
                 position.setNetwork(new Network(cellTower));
 
+                if (protocolVersion == 0x17) {
+                    buf.readUnsignedByte(); // geofence id
+                    buf.skipBytes(3); // reserved
+                }
+
             } else if (version == 1) {
 
                 position.set(Position.KEY_SATELLITES, buf.readUnsignedByte());
@@ -151,6 +158,19 @@ public class Jt600ProtocolDecoder extends BaseProtocolDecoder {
 
                 fuel += buf.readUnsignedByte();
                 position.set(Position.KEY_FUEL_LEVEL, fuel);
+
+            } else if (version == 3) {
+
+                BitBuffer bitBuffer = new BitBuffer(buf);
+
+                position.set("fuel1", bitBuffer.readUnsigned(12));
+                position.set("fuel2", bitBuffer.readUnsigned(12));
+                position.set("fuel3", bitBuffer.readUnsigned(12));
+                position.set(Position.KEY_ODOMETER, bitBuffer.readUnsigned(20) * 1000);
+
+                int status = bitBuffer.readUnsigned(24);
+                position.set(Position.KEY_IGNITION, BitUtil.check(status, 0));
+                position.set(Position.KEY_STATUS, status);
 
             }
 

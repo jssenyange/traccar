@@ -11,6 +11,18 @@ public class EelinkProtocolDecoderTest extends ProtocolTest {
         EelinkProtocolDecoder decoder = new EelinkProtocolDecoder(new EelinkProtocol());
 
         verifyNull(decoder, binary(
+                "454C0027E753035254407167747167670100180002035254407167747100200205020500010432000086BD"));
+
+        verifyPosition(decoder, binary(
+                "676780005a000001000000004c61743a4e33312e38333935352c4c6f6e3a5738322e36313334362c436f757273653a302e30302c53706565643a302e30306b6d2f682c4461746554696d653a323031372d31322d30322031313a32393a3433"));
+
+        verifyPosition(decoder, binary(
+                "676780005E5788014C754C754C61743A4E32332E3131313734330A4C6F6E3A453131342E3430393233380A436F757273653A302E30300A53706565643A302E31374B4D2F480A446174652054696D653A323031352D30392D31332032303A32313A3230"));
+
+        verifyPosition(decoder, binary(
+                "454C0050EAE2035254407167747167671200410021590BD93803026B940D0C3952AD0021000000000501CC0001A53F0170F0AB1305890F11000000000000C2D0001C001600000000000000000000000000000000"));
+
+        verifyNull(decoder, binary(
                 "676701000c007b03525440717505180104"));
 
         verifyPosition(decoder, binary(
@@ -43,7 +55,7 @@ public class EelinkProtocolDecoderTest extends ProtocolTest {
         verifyPosition(decoder, binary(
                 "676702002509f65868507603a1e92e03cf90fe000000019f000117ee00111e0120631145003101510000"));
 
-        verifyPosition(decoder, binary(
+        verifyAttributes(decoder, binary(
                 "676712001e0092579714d60201f90001785003a301cd1a006a118504f2000000000000"));
 
         verifyPosition(decoder, binary(
