@@ -31,6 +31,7 @@ import org.traccar.database.BaseObjectManager;
 import org.traccar.database.ExtendedObjectManager;
 import org.traccar.database.ManagableObjects;
 import org.traccar.database.SimpleObjectManager;
+import org.traccar.helper.LogAction;
 import org.traccar.model.BaseModel;
 import org.traccar.model.Command;
 import org.traccar.model.Device;
@@ -81,8 +82,10 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
 
         BaseObjectManager<T> manager = Context.getManager(baseClass);
         manager.addItem(entity);
+        LogAction.create(getUserId(), entity);
 
         Context.getDataManager().linkObject(User.class, getUserId(), baseClass, entity.getId(), true);
+        LogAction.link(getUserId(), User.class, getUserId(), baseClass, entity.getId());
 
         if (manager instanceof SimpleObjectManager) {
             ((SimpleObjectManager<T>) manager).refreshUserItems();
@@ -109,6 +112,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
         Context.getPermissionsManager().checkPermission(baseClass, getUserId(), entity.getId());
 
         Context.getManager(baseClass).updateItem(entity);
+        LogAction.edit(getUserId(), entity);
 
         if (baseClass.equals(Group.class) || baseClass.equals(Device.class)) {
             Context.getPermissionsManager().refreshDeviceAndGroupPermissions();
@@ -131,6 +135,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
 
         BaseObjectManager<T> manager = Context.getManager(baseClass);
         manager.removeItem(id);
+        LogAction.remove(getUserId(), baseClass, id);
 
         if (manager instanceof SimpleObjectManager) {
             ((SimpleObjectManager<T>) manager).refreshUserItems();
@@ -139,6 +144,10 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
             }
         }
         if (baseClass.equals(Group.class) || baseClass.equals(Device.class) || baseClass.equals(User.class)) {
+            if (baseClass.equals(Group.class)) {
+                Context.getGroupsManager().updateGroupCache(true);
+                Context.getDeviceManager().updateDeviceCache(true);
+            }
             Context.getPermissionsManager().refreshDeviceAndGroupPermissions();
             if (baseClass.equals(User.class)) {
                 Context.getPermissionsManager().refreshAllUsersPermissions();

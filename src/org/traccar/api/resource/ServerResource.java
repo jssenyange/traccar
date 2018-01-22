@@ -17,6 +17,7 @@ package org.traccar.api.resource;
 
 import org.traccar.Context;
 import org.traccar.api.BaseResource;
+import org.traccar.helper.LogAction;
 import org.traccar.model.Server;
 
 import javax.annotation.security.PermitAll;
@@ -46,6 +47,7 @@ public class ServerResource extends BaseResource {
         Context.getPermissionsManager().checkAdmin(getUserId());
         checkRememberMeLogin();
         Context.getPermissionsManager().updateServer(entity);
+        LogAction.edit(getUserId(), entity);
         return Response.ok(entity).build();
     }
 

@@ -75,13 +75,20 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
             .number("(x+)|")                     // battery
             .number("(x+)?,")                    // power
             .groupBegin()
-            .expression("([^,]+)?,")             // event specific
+            .expression("([^,]+)?,").optional()  // event specific
             .expression("[^,]*,")                // reserved
             .number("(d+)?,")                    // protocol
             .number("(x{4})?")                   // fuel
-            .number("(?:,(x{6}(?:|x{6})*))?")    // temperature
+            .groupBegin()
+            .number(",(x{6}(?:|x{6})*)?")        // temperature
+            .groupBegin()
+            .number(",(d+)")                     // data count
+            .expression(",([^*]*)")              // data
             .groupEnd("?")
+            .groupEnd("?")
+            .or()
             .any()
+            .groupEnd()
             .text("*")
             .number("xx")
             .text("\r\n").optional()
@@ -119,8 +126,7 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
+        Position position = new Position(getProtocolName());
 
         DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
         if (deviceSession == null) {
@@ -234,7 +240,34 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
             }
         }
 
+        if (parser.hasNext(2)) {
+            parser.nextInt(); // count
+            decodeDataFields(position, parser.next().split(","));
+        }
+
         return position;
+    }
+
+    private void decodeDataFields(Position position, String[] values) {
+
+        if (values.length > 1 && !values[1].isEmpty()) {
+            position.set("tempData", values[1]);
+        }
+
+        if (values.length > 5 && !values[5].isEmpty()) {
+            String[] data = values[5].split("\\|");
+            boolean started = data[0].charAt(0) == '0';
+            position.set("taximeterOn", started);
+            position.set("taximeterStart", data[1]);
+            if (data.length > 2) {
+                position.set("taximeterEnd", data[2]);
+                position.set("taximeterDistance", Integer.parseInt(data[3]));
+                position.set("taximeterFare", Integer.parseInt(data[4]));
+                position.set("taximeterTrip", data[5]);
+                position.set("taximeterWait", data[6]);
+            }
+        }
+
     }
 
     private List<Position> decodeBinaryC(Channel channel, SocketAddress remoteAddress, ChannelBuffer buf) {
@@ -253,8 +286,7 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
 
         while (buf.readableBytes() >= 0x34) {
 
-            Position position = new Position();
-            position.setProtocol(getProtocolName());
+            Position position = new Position(getProtocolName());
             position.setDeviceId(deviceSession.getDeviceId());
 
             position.set(Position.KEY_EVENT, buf.readUnsignedByte());
@@ -327,8 +359,7 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
         int count = buf.readUnsignedShort();
 
         for (int i = 0; i < count; i++) {
-            Position position = new Position();
-            position.setProtocol(getProtocolName());
+            Position position = new Position(getProtocolName());
             position.setDeviceId(deviceSession.getDeviceId());
 
             buf.readUnsignedShort(); // length
@@ -426,6 +457,10 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
 
         switch (type) {
             case "D00":
+                if (photo == null) {
+                    return null;
+                }
+
                 index = buf.indexOf(index + 1 + type.length() + 1, buf.writerIndex(), (byte) ',') + 1;
                 int endIndex =  buf.indexOf(index, buf.writerIndex(), (byte) ',');
                 int total = Integer.parseInt(buf.toString(index, endIndex - index, StandardCharsets.US_ASCII));
@@ -437,8 +472,7 @@ public class MeitrackProtocolDecoder extends BaseProtocolDecoder {
                 photo.writeBytes(buf.readBytes(buf.readableBytes() - 1 - 2 - 2));
 
                 if (current == total - 1) {
-                    Position position = new Position();
-                    position.setProtocol(getProtocolName());
+                    Position position = new Position(getProtocolName());
                     position.setDeviceId(getDeviceSession(channel, remoteAddress, imei).getDeviceId());
 
                     getLastLocation(position, null);

@@ -19,6 +19,7 @@ import org.traccar.Context;
 import org.traccar.api.BaseResource;
 import org.traccar.database.PersistentLoginManager;
 import org.traccar.model.PersistentLogin;
+import org.traccar.helper.LogAction;
 import org.traccar.model.User;
 
 import javax.annotation.security.PermitAll;
@@ -127,6 +128,7 @@ public class SessionResource extends BaseResource {
         User user = Context.getPermissionsManager().login(email, password);
         if (user != null) {
             request.getSession().setAttribute(USER_ID_KEY, user.getId());
+            LogAction.login(user.getId());
             Cookie persistentLoginCookie = getPersistentLoginCookie(request);
             if (rememberMe) {
                 if (persistentLoginCookie != null) {
@@ -143,7 +145,6 @@ public class SessionResource extends BaseResource {
                 persistentLoginCookie.setMaxAge(0);
                 response.addCookie(persistentLoginCookie);
             }
-
             return user;
         } else {
             throw new WebApplicationException(Response.status(Response.Status.UNAUTHORIZED).build());
@@ -152,6 +153,7 @@ public class SessionResource extends BaseResource {
 
     @DELETE
     public Response remove() throws SQLException {
+        LogAction.logout(getUserId());
         request.getSession().removeAttribute(USER_ID_KEY);
         Cookie persistentLoginCookie = getPersistentLoginCookie(request);
         if (persistentLoginCookie != null) {

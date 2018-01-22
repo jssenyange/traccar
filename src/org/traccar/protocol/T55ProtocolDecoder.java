@@ -99,11 +99,10 @@ public class T55ProtocolDecoder extends BaseProtocolDecoder {
     private Position decodeGprmc(
             DeviceSession deviceSession, String sentence, SocketAddress remoteAddress, Channel channel) {
 
-        if (deviceSession != null && channel != null && !(channel instanceof DatagramChannel)) {
-            if (Context.getIdentityManager().lookupAttributeBoolean(
-                    deviceSession.getDeviceId(), getProtocolName() + ".ack", false, true)) {
-                channel.write("OK1\r\n");
-            }
+        if (deviceSession != null && channel != null && !(channel instanceof DatagramChannel)
+                && Context.getIdentityManager().lookupAttributeBoolean(
+                        deviceSession.getDeviceId(), getProtocolName() + ".ack", false, true)) {
+            channel.write("OK1\r\n");
         }
 
         Parser parser = new Parser(PATTERN_GPRMC, sentence);
@@ -111,8 +110,7 @@ public class T55ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
+        Position position = new Position(getProtocolName());
 
         if (deviceSession != null) {
             position.setDeviceId(deviceSession.getDeviceId());
@@ -166,8 +164,7 @@ public class T55ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
+        Position position = new Position(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
 
         DateBuilder dateBuilder = new DateBuilder()
@@ -189,8 +186,7 @@ public class T55ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
+        Position position = new Position(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
 
         position.setTime(new Date());
@@ -210,8 +206,7 @@ public class T55ProtocolDecoder extends BaseProtocolDecoder {
             return null;
         }
 
-        Position position = new Position();
-        position.setProtocol(getProtocolName());
+        Position position = new Position(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
 
         position.setTime(parser.nextDateTime());

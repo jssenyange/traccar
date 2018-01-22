@@ -28,13 +28,17 @@
     <dropColumn tableName="users" columnName="distanceunit" />
   </changeSet>
 
-  <changeSet author="author" id="changelog-3.15" failOnError="false">
 
+  <changeSet author="author" id="changelog-3.15-0" failOnError="false">
     <dropForeignKeyConstraint baseTableName="attribute_aliases" constraintName="fk_attribute_aliases_deviceid" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-1" failOnError="false">
     <dropUniqueConstraint tableName="attribute_aliases" constraintName="uk_deviceid_attribute" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-3" failOnError="false">
     <dropTable tableName="attribute_aliases" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-4" failOnError="false">
     <createTable tableName="commands">
       <column name="id" type="INT" autoIncrement="true">
         <constraints primaryKey="true" />
@@ -52,7 +56,8 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-5" failOnError="false">
     <createTable tableName="user_command">
       <column name="userid" type="INT">
         <constraints nullable="false" />
@@ -61,10 +66,14 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-6" failOnError="false">
     <addForeignKeyConstraint baseTableName="user_command" baseColumnNames="userid" constraintName="fk_user_command_userid" referencedTableName="users" referencedColumnNames="id" onDelete="CASCADE" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-7" failOnError="false">
     <addForeignKeyConstraint baseTableName="user_command" baseColumnNames="commandid" constraintName="fk_user_command_commandid" referencedTableName="commands" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-8" failOnError="false">
     <createTable tableName="group_command">
       <column name="groupid" type="INT">
         <constraints nullable="false" />
@@ -73,10 +82,14 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-9" failOnError="false">
     <addForeignKeyConstraint baseTableName="group_command" baseColumnNames="groupid" constraintName="fk_group_command_groupid" referencedTableName="groups" referencedColumnNames="id" onDelete="CASCADE" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-10" failOnError="false">
     <addForeignKeyConstraint baseTableName="group_command" baseColumnNames="commandid" constraintName="fk_group_command_commandid" referencedTableName="commands" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-11" failOnError="false">
     <createTable tableName="device_command">
       <column name="deviceid" type="INT">
         <constraints nullable="false" />
@@ -85,24 +98,31 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-12" failOnError="false">
     <addForeignKeyConstraint baseTableName="device_command" baseColumnNames="deviceid" constraintName="fk_device_command_deviceid" referencedTableName="devices" referencedColumnNames="id" onDelete="CASCADE" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-13" failOnError="false">
     <addForeignKeyConstraint baseTableName="device_command" baseColumnNames="commandid" constraintName="fk_device_command_commandid" referencedTableName="commands" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-14" failOnError="false">
     <addColumn tableName="servers">
       <column name="limitcommands" type="BOOLEAN" defaultValueBoolean="false" />
     </addColumn>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-15" failOnError="false">
     <addColumn tableName="users">
       <column name="limitcommands" type="BOOLEAN" defaultValueBoolean="false" />
     </addColumn>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-16" failOnError="false">
     <addColumn tableName="notifications">
       <column name="always" type="BOOLEAN" defaultValueBoolean="false" valueBoolean="true">
         <constraints nullable="false" />
       </column>
     </addColumn>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-17" failOnError="false">
     <createTable tableName="user_notification">
       <column name="userid" type="INT">
         <constraints nullable="false" />
@@ -111,18 +131,25 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-18" failOnError="false">
     <addForeignKeyConstraint baseTableName="user_notification" baseColumnNames="userid" constraintName="fk_user_notification_userid" referencedTableName="users" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-19" failOnError="false">
     <sql>
       INSERT INTO user_notification (notificationid, userid) SELECT id AS notificationid, userid FROM notifications;
     </sql>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-20" failOnError="false">
     <dropForeignKeyConstraint baseTableName="notifications" constraintName="fk_notifications_userid"/>
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-21" failOnError="false">
     <dropColumn tableName="notifications" columnName="userid" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-22" failOnError="false">
     <addForeignKeyConstraint baseTableName="user_notification" baseColumnNames="notificationid" constraintName="fk_user_notification_notificationid" referencedTableName="notifications" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-23" failOnError="false">
     <createTable tableName="group_notification">
       <column name="groupid" type="INT">
         <constraints nullable="false" />
@@ -131,10 +158,14 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-24" failOnError="false">
     <addForeignKeyConstraint baseTableName="group_notification" baseColumnNames="groupid" constraintName="fk_group_notification_groupid" referencedTableName="groups" referencedColumnNames="id" onDelete="CASCADE" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-25" failOnError="false">
     <addForeignKeyConstraint baseTableName="group_notification" baseColumnNames="notificationid" constraintName="fk_group_notification_notificationid" referencedTableName="notifications" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-26" failOnError="false">
     <createTable tableName="device_notification">
       <column name="deviceid" type="INT">
         <constraints nullable="false" />
@@ -143,16 +174,22 @@
         <constraints nullable="false" />
       </column>
     </createTable>
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-27" failOnError="false">
     <addForeignKeyConstraint baseTableName="device_notification" baseColumnNames="deviceid" constraintName="fk_device_notification_deviceid" referencedTableName="devices" referencedColumnNames="id" onDelete="CASCADE" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-28" failOnError="false">
     <addForeignKeyConstraint baseTableName="device_notification" baseColumnNames="notificationid" constraintName="fk_device_notification_notificationid" referencedTableName="notifications" referencedColumnNames="id" onDelete="CASCADE" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-29" failOnError="false">
     <dropNotNullConstraint tableName="users" columnName="hashedpassword" columnDataType="VARCHAR(128)" />
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-30" failOnError="false">
     <dropNotNullConstraint tableName="users" columnName="salt" columnDataType="VARCHAR(128)" />
-
+  </changeSet>
+  <changeSet author="author" id="changelog-3.15-31" failOnError="false">
     <addColumn tableName="users">
       <column name="login" type="VARCHAR(128)" />
     </addColumn>
-
   </changeSet>
 </databaseChangeLog>
