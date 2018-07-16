@@ -11,10 +11,22 @@ public class T55ProtocolDecoderTest extends ProtocolTest {
         T55ProtocolDecoder decoder = new T55ProtocolDecoder(new T55Protocol());
 
         verifyNull(decoder, text(
+                "$IMEI=355797031609284"));
+
+        verifyNull(decoder, text(
                 "086415031C20"));
 
         verifyNull(decoder, text(
                 "358244017671308"));
+
+        verifyPosition(decoder, text(
+                "$GPGGA,082350.000,5355.0314,N,01044.1271,E,1,10,0.7,-46.0,M,0.0,M,0.0,0000"));
+
+        verifyPosition(decoder, text(
+                "$GPRMC,082350.000,A,5355.0314,N,01044.1271,E,26.20,184.27,080518,,"));
+
+        verifyPosition(decoder, text(
+                "$GPRMC,192350.000,V,0000.0000,N,00000.0000,E,,,110318,,*12"));
 
         verifyPosition(decoder, text(
                 "$GPRMC,073446.000,A,1255.5125,N,07738.2948,E,0.00,0.53,080316,D*71,11,865733027593268,1,090,086,123,456,789,987,12345"));

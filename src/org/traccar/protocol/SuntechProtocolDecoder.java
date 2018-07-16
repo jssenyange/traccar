@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2013 - 2018 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,14 @@
  */
 package org.traccar.protocol;
 
-import org.jboss.netty.channel.Channel;
+import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.Context;
 import org.traccar.DeviceSession;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.UnitsConverter;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
@@ -156,7 +158,7 @@ public class SuntechProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
-    private Position decode235(
+    private Position decode2356(
             Channel channel, SocketAddress remoteAddress, String protocol, String[] values) throws ParseException {
         int index = 0;
 
@@ -175,7 +177,7 @@ public class SuntechProtocolDecoder extends BaseProtocolDecoder {
         position.setDeviceId(deviceSession.getDeviceId());
         position.set(Position.KEY_TYPE, type);
 
-        if (protocol.equals("ST300") || protocol.equals("ST500")) {
+        if (protocol.equals("ST300") || protocol.equals("ST500") || protocol.equals("ST600")) {
             index += 1; // model
         }
 
@@ -186,7 +188,12 @@ public class SuntechProtocolDecoder extends BaseProtocolDecoder {
         position.setTime(dateFormat.parse(values[index++] + values[index++]));
 
         if (!protocol.equals("ST500")) {
-            index += 1; // cell
+            int cid = Integer.parseInt(values[index++], 16);
+            if (protocol.equals("ST600")) {
+                position.setNetwork(new Network(CellTower.from(
+                        Integer.parseInt(values[index++]), Integer.parseInt(values[index++]),
+                        Integer.parseInt(values[index++], 16), cid, Integer.parseInt(values[index++]))));
+            }
         }
 
         position.setLatitude(Double.parseDouble(values[index++]));
@@ -232,7 +239,7 @@ public class SuntechProtocolDecoder extends BaseProtocolDecoder {
         if (hbm) {
 
             if (index < values.length) {
-                position.set(Position.KEY_HOURS, Integer.parseInt(values[index++]));
+                position.set(Position.KEY_HOURS, UnitsConverter.msFromMinutes(Integer.parseInt(values[index++])));
             }
 
             if (index < values.length) {
@@ -369,7 +376,7 @@ public class SuntechProtocolDecoder extends BaseProtocolDecoder {
         } else if (values[0].equals("ST910")) {
             return decode9(channel, remoteAddress, values);
         } else {
-            return decode235(channel, remoteAddress, values[0].substring(0, 5), values);
+            return decode2356(channel, remoteAddress, values[0].substring(0, 5), values);
         }
     }
 

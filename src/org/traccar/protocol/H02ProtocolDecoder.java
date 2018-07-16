@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
  */
 package org.traccar.protocol;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
 import org.traccar.helper.BcdUtil;
@@ -40,7 +40,7 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
-    private static double readCoordinate(ChannelBuffer buf, boolean lon) {
+    private static double readCoordinate(ByteBuf buf, boolean lon) {
 
         int degrees = BcdUtil.readInteger(buf, 2);
         if (lon) {
@@ -99,14 +99,14 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
-    private Position decodeBinary(ChannelBuffer buf, Channel channel, SocketAddress remoteAddress) {
+    private Position decodeBinary(ByteBuf buf, Channel channel, SocketAddress remoteAddress) {
 
         Position position = new Position(getProtocolName());
 
         buf.readByte(); // marker
 
         DeviceSession deviceSession = getDeviceSession(
-                channel, remoteAddress, ChannelBuffers.hexDump(buf.readBytes(5)));
+                channel, remoteAddress, ByteBufUtil.hexDump(buf.readSlice(5)));
         if (deviceSession == null) {
             return null;
         }
@@ -148,7 +148,7 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
     private static final Pattern PATTERN = new PatternBuilder()
             .text("*")
             .expression("..,")                   // manufacturer
-            .number("(d+),")                     // imei
+            .number("(d+)?,")                    // imei
             .groupBegin()
             .text("VP1,")
             .or()
@@ -451,12 +451,12 @@ public class H02ProtocolDecoder extends BaseProtocolDecoder {
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
 
-        ChannelBuffer buf = (ChannelBuffer) msg;
+        ByteBuf buf = (ByteBuf) msg;
         String marker = buf.toString(0, 1, StandardCharsets.US_ASCII);
 
         switch (marker) {
             case "*":
-                String sentence = buf.toString(StandardCharsets.US_ASCII);
+                String sentence = buf.toString(StandardCharsets.US_ASCII).trim();
                 int typeStart = sentence.indexOf(',', sentence.indexOf(',') + 1) + 1;
                 int typeEnd = sentence.indexOf(',', typeStart);
                 if (typeEnd > 0) {

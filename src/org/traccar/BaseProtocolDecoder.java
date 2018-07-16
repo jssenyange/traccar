@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2016 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,8 @@
  */
 package org.traccar;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.socket.DatagramChannel;
-import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.channel.Channel;
+import io.netty.channel.socket.DatagramChannel;
 import org.traccar.helper.Log;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Device;
@@ -29,6 +28,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 import java.sql.SQLException;
 
 public abstract class BaseProtocolDecoder extends ExtendedObjectDecoder {
@@ -81,6 +81,25 @@ public abstract class BaseProtocolDecoder extends ExtendedObjectDecoder {
         }
     }
 
+    protected TimeZone getTimeZone(long deviceId) {
+        TimeZone result = TimeZone.getTimeZone("UTC");
+        String timeZoneName = null;
+        if (Context.getDeviceManager() != null) {
+            timeZoneName = Context.getDeviceManager().lookupAttributeString(
+                    deviceId, "decoder.timezone", null, true);
+        }
+        if (timeZoneName != null) {
+            result = TimeZone.getTimeZone(timeZoneName);
+        } else {
+            int timeZoneOffset = Context.getConfig().getInteger(getProtocolName() + ".timezone", 0);
+            if (timeZoneOffset != 0) {
+                result.setRawOffset(timeZoneOffset * 1000);
+                Log.warning("Config parameter " + getProtocolName() + ".timezone is deprecated");
+            }
+        }
+        return result;
+    }
+
     private DeviceSession channelDeviceSession; // connection-based protocols
     private Map<SocketAddress, DeviceSession> addressDeviceSessions = new HashMap<>(); // connectionless protocols
 
@@ -125,7 +144,7 @@ public abstract class BaseProtocolDecoder extends ExtendedObjectDecoder {
     }
 
     public DeviceSession getDeviceSession(Channel channel, SocketAddress remoteAddress, String... uniqueIds) {
-        if (channel != null && channel.getPipeline().get(HttpRequestDecoder.class) != null
+        if (channel != null && channel.pipeline().get("httpDecoder") != null
                 || Context.getConfig().getBoolean("decoder.ignoreSessionCache")) {
             long deviceId = findDeviceId(remoteAddress, uniqueIds);
             if (deviceId != 0) {

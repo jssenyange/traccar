@@ -115,7 +115,7 @@ public class LdapProvider {
 
         SearchResult searchResult = null;
         if (results.hasMoreElements()) {
-            searchResult = (SearchResult) results.nextElement();
+            searchResult = results.nextElement();
             if (results.hasMoreElements()) {
                 Log.warning("Matched multiple users for the accountName: " + accountName);
                 return null;
@@ -150,7 +150,7 @@ public class LdapProvider {
                     user.setEmail(accountName);
                 }
             }
-            user.setAdmin(isAdmin(accountName));
+            user.setAdministrator(isAdmin(accountName));
         } catch (NamingException e) {
             user.setLogin(accountName);
             user.setName(accountName);

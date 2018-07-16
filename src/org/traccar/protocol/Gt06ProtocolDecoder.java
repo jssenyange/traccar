@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,14 @@
  */
 package org.traccar.protocol;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.Context;
 import org.traccar.DeviceSession;
+import org.traccar.NetworkMessage;
 import org.traccar.helper.BcdUtil;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.Checksum;
@@ -44,18 +46,10 @@ import java.util.regex.Pattern;
 
 public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
-    private boolean forceTimeZone = false;
-    private final TimeZone timeZone = TimeZone.getTimeZone("UTC");
-
-    private final Map<Integer, ChannelBuffer> photos = new HashMap<>();
+    private final Map<Integer, ByteBuf> photos = new HashMap<>();
 
     public Gt06ProtocolDecoder(Gt06Protocol protocol) {
         super(protocol);
-
-        if (Context.getConfig().hasKey(getProtocolName() + ".timezone")) {
-            forceTimeZone = true;
-            timeZone.setRawOffset(Context.getConfig().getInteger(getProtocolName() + ".timezone") * 1000);
-        }
     }
 
     public static final int MSG_LOGIN = 0x01;
@@ -170,9 +164,9 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
-    private void sendResponse(Channel channel, boolean extended, int type, int index, ChannelBuffer content) {
+    private void sendResponse(Channel channel, boolean extended, int type, int index, ByteBuf content) {
         if (channel != null) {
-            ChannelBuffer response = ChannelBuffers.dynamicBuffer();
+            ByteBuf response = Unpooled.buffer();
             int length = 5 + (content != null ? content.readableBytes() : 0);
             if (extended) {
                 response.writeShort(0x7979);
@@ -184,27 +178,28 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             response.writeByte(type);
             if (content != null) {
                 response.writeBytes(content);
+                content.release();
             }
             response.writeShort(index);
             response.writeShort(Checksum.crc16(Checksum.CRC16_X25,
-                    response.toByteBuffer(2, response.writerIndex() - 2)));
+                    response.nioBuffer(2, response.writerIndex() - 2)));
             response.writeByte('\r'); response.writeByte('\n'); // ending
-            channel.write(response);
+            channel.writeAndFlush(new NetworkMessage(response, channel.remoteAddress()));
         }
     }
 
     private void sendPhotoRequest(Channel channel, int pictureId) {
-        ChannelBuffer photo = photos.get(pictureId);
-        ChannelBuffer content = ChannelBuffers.dynamicBuffer();
+        ByteBuf photo = photos.get(pictureId);
+        ByteBuf content = Unpooled.buffer();
         content.writeInt(pictureId);
         content.writeInt(photo.writerIndex());
         content.writeShort(Math.min(photo.writableBytes(), 1024));
         sendResponse(channel, false, MSG_X1_PHOTO_DATA, 0, content);
     }
 
-    private boolean decodeGps(Position position, ChannelBuffer buf, boolean hasLength) {
+    private boolean decodeGps(Position position, ByteBuf buf, boolean hasLength, TimeZone timezone) {
 
-        DateBuilder dateBuilder = new DateBuilder(timeZone)
+        DateBuilder dateBuilder = new DateBuilder(timezone)
                 .setDate(buf.readUnsignedByte(), buf.readUnsignedByte(), buf.readUnsignedByte())
                 .setTime(buf.readUnsignedByte(), buf.readUnsignedByte(), buf.readUnsignedByte());
         position.setTime(dateBuilder.getDate());
@@ -240,7 +235,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         return true;
     }
 
-    private boolean decodeLbs(Position position, ChannelBuffer buf, boolean hasLength) {
+    private boolean decodeLbs(Position position, ByteBuf buf, boolean hasLength) {
 
         int length = 0;
         if (hasLength) {
@@ -263,7 +258,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         return true;
     }
 
-    private boolean decodeStatus(Position position, ChannelBuffer buf) {
+    private boolean decodeStatus(Position position, ByteBuf buf) {
 
         int status = buf.readUnsignedByte();
 
@@ -375,7 +370,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         return position;
     }
 
-    private Object decodeBasic(Channel channel, SocketAddress remoteAddress, ChannelBuffer buf) throws Exception {
+    private Object decodeBasic(Channel channel, SocketAddress remoteAddress, ByteBuf buf) throws Exception {
 
         int length = buf.readUnsignedByte();
         int dataLength = length - 5;
@@ -387,12 +382,20 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             if (deviceSession == null) {
                 return null;
             }
+            if (deviceSession.getTimeZone() == null) {
+                deviceSession.setTimeZone(getTimeZone(deviceSession.getDeviceId()));
+            }
         }
 
         if (type == MSG_LOGIN) {
 
-            String imei = ChannelBuffers.hexDump(buf.readBytes(8)).substring(1);
+            String imei = ByteBufUtil.hexDump(buf.readSlice(8)).substring(1);
             buf.readUnsignedShort(); // type
+
+            deviceSession = getDeviceSession(channel, remoteAddress, imei);
+            if (deviceSession != null && deviceSession.getTimeZone() == null) {
+                deviceSession.setTimeZone(getTimeZone(deviceSession.getDeviceId()));
+            }
 
             if (dataLength > 10) {
                 int extensionBits = buf.readUnsignedShort();
@@ -402,12 +405,17 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
                 if ((extensionBits & 0x8) != 0) {
                     offset = -offset;
                 }
-                if (!forceTimeZone) {
-                    timeZone.setRawOffset(offset * 1000);
+                if (deviceSession != null) {
+                    TimeZone timeZone = deviceSession.getTimeZone();
+                    if (timeZone.getRawOffset() == 0) {
+                        timeZone.setRawOffset(offset * 1000);
+                        deviceSession.setTimeZone(timeZone);
+                    }
                 }
+
             }
 
-            if (getDeviceSession(channel, remoteAddress, imei) != null) {
+            if (deviceSession != null) {
                 sendResponse(channel, false, type, buf.getShort(buf.writerIndex() - 6), null);
             }
 
@@ -423,6 +431,13 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             position.set(Position.KEY_IGNITION, BitUtil.check(status, 1));
             position.set(Position.KEY_CHARGE, BitUtil.check(status, 2));
 
+            if (buf.readableBytes() >= 2 + 6) {
+                position.set(Position.KEY_BATTERY, buf.readUnsignedShort() * 0.01);
+            }
+            if (buf.readableBytes() >= 1 + 6) {
+                position.set(Position.KEY_RSSI, buf.readUnsignedByte());
+            }
+
             sendResponse(channel, false, type, buf.getShort(buf.writerIndex() - 6), null);
 
             return position;
@@ -430,7 +445,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         } else if (type == MSG_ADDRESS_REQUEST) {
 
             String response = "NA&&NA&&0##";
-            ChannelBuffer content = ChannelBuffers.dynamicBuffer();
+            ByteBuf content = Unpooled.buffer();
             content.writeByte(response.length());
             content.writeInt(0);
             content.writeBytes(response.getBytes(StandardCharsets.US_ASCII));
@@ -439,7 +454,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         } else if (type == MSG_TIME_REQUEST) {
 
             Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-            ChannelBuffer content = ChannelBuffers.dynamicBuffer();
+            ByteBuf content = Unpooled.buffer();
             content.writeByte(calendar.get(Calendar.YEAR) - 2000);
             content.writeByte(calendar.get(Calendar.MONTH) + 1);
             content.writeByte(calendar.get(Calendar.DAY_OF_MONTH));
@@ -455,7 +470,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
             buf.readUnsignedInt(); // data and alarm
 
-            decodeGps(position, buf, false);
+            decodeGps(position, buf, false, deviceSession.getTimeZone());
 
             buf.readUnsignedShort(); // terminal info
 
@@ -477,7 +492,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             buf.readUnsignedByte(); // photo source
             buf.readUnsignedByte(); // picture format
 
-            ChannelBuffer photo = ChannelBuffers.buffer(buf.readInt());
+            ByteBuf photo = Unpooled.buffer(buf.readInt());
             int pictureId = buf.readInt();
             photos.put(pictureId, photo);
             sendPhotoRequest(channel, pictureId);
@@ -495,7 +510,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         return null;
     }
 
-    private Object decodeWifi(ChannelBuffer buf, DeviceSession deviceSession) throws Exception {
+    private Object decodeWifi(ByteBuf buf, DeviceSession deviceSession) throws Exception {
 
         Position position = new Position(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
@@ -532,7 +547,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         return position;
     }
 
-    private Object decodeBasicOther(Channel channel, ChannelBuffer buf,
+    private Object decodeBasicOther(Channel channel, ByteBuf buf,
             DeviceSession deviceSession, int type, int dataLength) throws Exception {
 
         Position position = new Position(getProtocolName());
@@ -543,7 +558,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
             boolean longFormat = type == MSG_LBS_2 || type == MSG_WIFI_3;
 
-            DateBuilder dateBuilder = new DateBuilder(timeZone)
+            DateBuilder dateBuilder = new DateBuilder(deviceSession.getTimeZone())
                     .setDate(buf.readUnsignedByte(), buf.readUnsignedByte(), buf.readUnsignedByte())
                     .setTime(buf.readUnsignedByte(), buf.readUnsignedByte(), buf.readUnsignedByte());
 
@@ -566,7 +581,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             if (type != MSG_LBS_MULTIPLE && type != MSG_LBS_2) {
                 int wifiCount = buf.readUnsignedByte();
                 for (int i = 0; i < wifiCount; i++) {
-                    String mac = ChannelBuffers.hexDump(buf.readBytes(6)).replaceAll("(..)", "$1:");
+                    String mac = ByteBufUtil.hexDump(buf.readSlice(6)).replaceAll("(..)", "$1:");
                     network.addWifiAccessPoint(WifiAccessPoint.from(
                             mac.substring(0, mac.length() - 1), buf.readUnsignedByte()));
                 }
@@ -583,13 +598,13 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             if (commandLength > 0) {
                 buf.readUnsignedByte(); // server flag (reserved)
                 position.set(Position.KEY_RESULT,
-                        buf.readBytes(commandLength - 1).toString(StandardCharsets.US_ASCII));
+                        buf.readSlice(commandLength - 1).toString(StandardCharsets.US_ASCII));
             }
 
         } else if (isSupported(type)) {
 
             if (hasGps(type)) {
-                decodeGps(position, buf, false);
+                decodeGps(position, buf, false, deviceSession.getTimeZone());
             } else {
                 getLastLocation(position, null);
             }
@@ -614,7 +629,9 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
         } else {
 
-            buf.skipBytes(dataLength);
+            if (dataLength > 0) {
+                buf.skipBytes(dataLength);
+            }
             if (type != MSG_COMMAND_0 && type != MSG_COMMAND_1 && type != MSG_COMMAND_2) {
                 sendResponse(channel, false, type, buf.getShort(buf.writerIndex() - 6), null);
             }
@@ -635,11 +652,15 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         return position;
     }
 
-    private Object decodeExtended(Channel channel, SocketAddress remoteAddress, ChannelBuffer buf) throws Exception {
+    private Object decodeExtended(Channel channel, SocketAddress remoteAddress, ByteBuf buf) throws Exception {
 
         DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
         if (deviceSession == null) {
             return null;
+        }
+
+        if (deviceSession.getTimeZone() == null) {
+            deviceSession.setTimeZone(getTimeZone(deviceSession.getDeviceId()));
         }
 
         Position position = new Position(getProtocolName());
@@ -653,9 +674,9 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             buf.readUnsignedInt(); // server flag
             String data;
             if (buf.readUnsignedByte() == 1) {
-                data = buf.readBytes(buf.readableBytes() - 6).toString(StandardCharsets.US_ASCII);
+                data = buf.readSlice(buf.readableBytes() - 6).toString(StandardCharsets.US_ASCII);
             } else {
-                data = buf.readBytes(buf.readableBytes() - 6).toString(StandardCharsets.UTF_16BE);
+                data = buf.readSlice(buf.readableBytes() - 6).toString(StandardCharsets.UTF_16BE);
             }
 
             if (decodeLocationString(position, data) == null) {
@@ -695,7 +716,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
 
             int pictureId = buf.readInt();
 
-            ChannelBuffer photo = photos.get(pictureId);
+            ByteBuf photo = photos.get(pictureId);
 
             buf.readUnsignedInt(); // offset
             buf.readBytes(photo, buf.readUnsignedShort());
@@ -704,13 +725,14 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
                 sendPhotoRequest(channel, pictureId);
             } else {
                 Device device = Context.getDeviceManager().getById(deviceSession.getDeviceId());
-                Context.getMediaManager().writeFile(device.getUniqueId(), photo, "jpg");
-                photos.remove(pictureId);
+                position.set(
+                        Position.KEY_IMAGE, Context.getMediaManager().writeFile(device.getUniqueId(), photo, "jpg"));
+                photos.remove(pictureId).release();
             }
 
         } else if (type == MSG_AZ735_GPS || type == MSG_AZ735_ALARM) {
 
-            if (!decodeGps(position, buf, true)) {
+            if (!decodeGps(position, buf, true, deviceSession.getTimeZone())) {
                 getLastLocation(position, position.getDeviceTime());
             }
 
@@ -762,7 +784,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
 
-        ChannelBuffer buf = (ChannelBuffer) msg;
+        ByteBuf buf = (ByteBuf) msg;
 
         int header = buf.readShort();
 

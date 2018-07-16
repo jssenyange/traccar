@@ -80,8 +80,8 @@ public final class Hashing {
     public static HashingResult createHash(String password, byte[] salt) {
         byte[] hash = function(password.toCharArray(), salt);
         return new HashingResult(
-                DatatypeConverter.printHexBinary(hash),
-                DatatypeConverter.printHexBinary(salt));
+                DataConverter.printHex(hash),
+                DataConverter.printHex(salt));
     }
 
     public static HashingResult createHash(String password, String salt) {
@@ -89,8 +89,8 @@ public final class Hashing {
     }
 
     public static boolean validatePassword(String password, String hashHex, String saltHex) {
-        byte[] hash = DatatypeConverter.parseHexBinary(hashHex);
-        byte[] salt = DatatypeConverter.parseHexBinary(saltHex);
+        byte[] hash = DataConverter.parseHex(hashHex);
+        byte[] salt = DataConverter.parseHex(saltHex);
         return slowEquals(hash, function(password.toCharArray(), salt));
     }
 

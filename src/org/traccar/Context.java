@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ package org.traccar;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.ning.http.client.AsyncHttpClient;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Properties;
 
+import com.fasterxml.jackson.datatype.jsr353.JSR353Module;
+import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
+import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
 import org.apache.velocity.app.VelocityEngine;
 import org.eclipse.jetty.util.URIUtil;
 import org.traccar.database.CalendarManager;
@@ -36,6 +38,7 @@ import org.traccar.database.GeofenceManager;
 import org.traccar.database.DriversManager;
 import org.traccar.database.IdentityManager;
 import org.traccar.database.LdapProvider;
+import org.traccar.database.MaintenancesManager;
 import org.traccar.database.MediaManager;
 import org.traccar.database.NotificationManager;
 import org.traccar.database.PermissionsManager;
@@ -49,6 +52,7 @@ import org.traccar.geocoder.AddressFormat;
 import org.traccar.geocoder.BingMapsGeocoder;
 import org.traccar.geocoder.FactualGeocoder;
 import org.traccar.geocoder.GeocodeFarmGeocoder;
+import org.traccar.geocoder.GeocodeXyzGeocoder;
 import org.traccar.geocoder.GisgraphyGeocoder;
 import org.traccar.geocoder.GoogleGeocoder;
 import org.traccar.geocoder.MapQuestGeocoder;
@@ -65,6 +69,7 @@ import org.traccar.model.Device;
 import org.traccar.model.Driver;
 import org.traccar.model.Geofence;
 import org.traccar.model.Group;
+import org.traccar.model.Maintenance;
 import org.traccar.model.Notification;
 import org.traccar.model.User;
 import org.traccar.geolocation.GoogleGeolocationProvider;
@@ -73,12 +78,18 @@ import org.traccar.geolocation.MozillaGeolocationProvider;
 import org.traccar.geolocation.OpenCellIdGeolocationProvider;
 import org.traccar.notification.EventForwarder;
 import org.traccar.notification.JsonTypeEventForwarder;
-import org.traccar.notification.MultiPartEventForwarder;
+import org.traccar.notification.NotificatorManager;
 import org.traccar.reports.model.TripsConfig;
-import org.traccar.smpp.SmppClient;
+import org.traccar.sms.SmsManager;
 import org.traccar.web.WebServer;
 
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+
 public final class Context {
+
+    private static final String USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0";
 
     private Context() {
     }
@@ -197,16 +208,22 @@ public final class Context {
         return notificationManager;
     }
 
+    private static NotificatorManager notificatorManager;
+
+    public static NotificatorManager getNotificatorManager() {
+        return notificatorManager;
+    }
+
     private static VelocityEngine velocityEngine;
 
     public static VelocityEngine getVelocityEngine() {
         return velocityEngine;
     }
 
-    private static final AsyncHttpClient ASYNC_HTTP_CLIENT = new AsyncHttpClient();
+    private static Client client = ClientBuilder.newClient();
 
-    public static AsyncHttpClient getAsyncHttpClient() {
-        return ASYNC_HTTP_CLIENT;
+    public static Client getClient() {
+        return client;
     }
 
     private static EventForwarder eventForwarder;
@@ -233,6 +250,12 @@ public final class Context {
         return commandsManager;
     }
 
+    private static MaintenancesManager maintenancesManager;
+
+    public static MaintenancesManager getMaintenancesManager() {
+        return maintenancesManager;
+    }
+
     private static StatisticsManager statisticsManager;
 
     public static StatisticsManager getStatisticsManager() {
@@ -245,10 +268,10 @@ public final class Context {
         return persistentLoginManager;
     }
 
-    private static SmppClient smppClient;
+    private static SmsManager smsManager;
 
-    public static SmppClient getSmppManager() {
-        return smppClient;
+    public static SmsManager getSmsManager() {
+        return smsManager;
     }
 
     private static MotionEventHandler motionEventHandler;
@@ -310,6 +333,8 @@ public final class Context {
                 return new FactualGeocoder(url, key, cacheSize, addressFormat);
             case "geocodefarm":
                 return new GeocodeFarmGeocoder(key, language, cacheSize, addressFormat);
+            case "geocodexyz":
+                return new GeocodeXyzGeocoder(key, cacheSize, addressFormat);
             default:
                 return new GoogleGeocoder(key, language, cacheSize, addressFormat);
         }
@@ -330,11 +355,17 @@ public final class Context {
         }
 
         objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JSR353Module());
         objectMapper.setConfig(
                 objectMapper.getSerializationConfig().without(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS));
         if (Context.getConfig().getBoolean("mapper.prettyPrintedJson")) {
             objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         }
+
+        JacksonJsonProvider jsonProvider =
+                new JacksonJaxbJsonProvider(objectMapper, JacksonJaxbJsonProvider.DEFAULT_ANNOTATIONS);
+        client = ClientBuilder.newClient().register(jsonProvider);
+
 
         if (config.hasKey("database.url")) {
             dataManager = new DataManager(config);
@@ -344,9 +375,7 @@ public final class Context {
             ldapProvider = new LdapProvider(config);
         }
 
-        if (config.hasKey("media.path")) {
-            mediaManager = new MediaManager(config);
-        }
+        mediaManager = new MediaManager(config.getString("media.path"));
 
         if (dataManager != null) {
             usersManager = new UsersManager(dataManager);
@@ -374,6 +403,15 @@ public final class Context {
 
         tripsConfig = initTripsConfig();
 
+        if (config.getBoolean("sms.enable")) {
+            final String smsManagerClass = config.getString("sms.manager.class", "org.traccar.smpp.SmppClient");
+            try {
+                smsManager = (SmsManager) Class.forName(smsManagerClass).newInstance();
+            } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
+                Log.warning("Error loading SMS Manager class : " + smsManagerClass, e);
+            }
+        }
+
         if (config.getBoolean("event.enable")) {
             initEventsModule();
         }
@@ -381,26 +419,18 @@ public final class Context {
         serverManager = new ServerManager();
 
         if (config.getBoolean("event.forward.enable")) {
-            if (Context.getConfig().getBoolean("event.forward.payloadAsParamMode")) {
-                eventForwarder = new MultiPartEventForwarder();
-            } else {
-                eventForwarder = new JsonTypeEventForwarder();
-            }
+            eventForwarder = new JsonTypeEventForwarder();
         }
 
         attributesManager = new AttributesManager(dataManager);
 
         driversManager = new DriversManager(dataManager);
 
-        commandsManager = new CommandsManager(dataManager);
+        commandsManager = new CommandsManager(dataManager, config.getBoolean("commands.queueing"));
 
         statisticsManager = new StatisticsManager();
 
         persistentLoginManager = new PersistentLoginManager(dataManager, config);
-
-        if (config.getBoolean("sms.smpp.enable")) {
-            smppClient = new SmppClient();
-        }
     }
 
     private static void initGeolocationModule() {
@@ -429,7 +459,9 @@ public final class Context {
 
         geofenceManager = new GeofenceManager(dataManager);
         calendarManager = new CalendarManager(dataManager);
+        maintenancesManager = new MaintenancesManager(dataManager);
         notificationManager = new NotificationManager(dataManager);
+        notificatorManager = new NotificatorManager();
         Properties velocityProperties = new Properties();
         velocityProperties.setProperty("file.resource.loader.path",
                 Context.getConfig().getString("templates.rootPath", "templates") + "/");
@@ -453,12 +485,17 @@ public final class Context {
         motionEventHandler = new MotionEventHandler(tripsConfig);
         overspeedEventHandler = new OverspeedEventHandler(
                 Context.getConfig().getLong("event.overspeed.minimalDuration") * 1000,
-                Context.getConfig().getBoolean("event.overspeed.notRepeat"));
+                Context.getConfig().getBoolean("event.overspeed.notRepeat"),
+                Context.getConfig().getBoolean("event.overspeed.preferLowest"));
     }
 
     public static void init(IdentityManager testIdentityManager) {
         config = new Config();
         objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JSR353Module());
+        JacksonJsonProvider jsonProvider =
+                new JacksonJaxbJsonProvider(objectMapper, JacksonJaxbJsonProvider.DEFAULT_ANNOTATIONS);
+        client = ClientBuilder.newClient().register(jsonProvider);
         identityManager = testIdentityManager;
     }
 
@@ -479,6 +516,8 @@ public final class Context {
             return (BaseObjectManager<T>) driversManager;
         } else if (clazz.equals(Command.class)) {
             return (BaseObjectManager<T>) commandsManager;
+        } else if (clazz.equals(Maintenance.class)) {
+            return (BaseObjectManager<T>) maintenancesManager;
         } else if (clazz.equals(Notification.class)) {
             return (BaseObjectManager<T>) notificationManager;
         }
