@@ -251,8 +251,8 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         position.setNetwork(new Network(CellTower.from(
                 BitUtil.to(mcc, 15), mnc, buf.readUnsignedShort(), buf.readUnsignedMedium())));
 
-        if (length > 0) {
-            buf.skipBytes(length - (hasLength ? 9 : 8));
+        if (length > 9) {
+            buf.skipBytes(length - 9);
         }
 
         return true;
@@ -350,7 +350,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
             .text("Course:").number("(d+.d+),")  // course
             .text("Speed:").number("(d+.d+),")   // speed
             .text("DateTime:")
-            .number("(dddd)-(dd)-(dd)  ")        // date
+            .number("(dddd)-(dd)-(dd) +")        // date
             .number("(dd):(dd):(dd)")            // time
             .compile();
 
