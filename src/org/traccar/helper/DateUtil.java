@@ -15,15 +15,13 @@
  */
 package org.traccar.helper;
 
+import org.traccar.Context;
+
+import java.time.Instant;
 import java.util.Calendar;
 import java.util.Date;
 
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
-
 public final class DateUtil {
-
-    private static final DateTimeFormatter DATE_FORMAT = ISODateTimeFormat.dateTimeParser();
 
     private DateUtil() {
     }
@@ -61,6 +59,7 @@ public final class DateUtil {
     }
 
     public static Date parseDate(String value) {
-        return DATE_FORMAT.parseDateTime(value).toDate();
+        return Date.from(Instant.from(Context.DATE_FORMATTER.parse(value)));
     }
+
 }

@@ -284,7 +284,7 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
                 break;
         }
 
-        position.set(Position.KEY_BATTERY, buf.readUnsignedByte());
+        position.set(Position.KEY_BATTERY_LEVEL, buf.readUnsignedByte() * 100 / 6);
         position.set(Position.KEY_RSSI, buf.readUnsignedByte());
         position.set(Position.KEY_ALARM, decodeAlarm(buf.readUnsignedByte()));
 
@@ -311,6 +311,21 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
                 return Position.ALARM_LOW_BATTERY;
             case 0x11:
                 return Position.ALARM_POWER_OFF;
+            case 0x13:
+                return Position.ALARM_TAMPERING;
+            case 0x14:
+                return Position.ALARM_DOOR;
+            case 0x29:
+                return Position.ALARM_ACCELERATION;
+            case 0x30:
+                return Position.ALARM_BRAKING;
+            case 0x2A:
+            case 0x2B:
+                return Position.ALARM_CORNERING;
+            case 0x2C:
+                return Position.ALARM_ACCIDENT;
+            case 0x23:
+                return Position.ALARM_FALL_DOWN;
             default:
                 return null;
         }
@@ -500,6 +515,17 @@ public class Gt06ProtocolDecoder extends BaseProtocolDecoder {
         } else if (type == MSG_WIFI || type == MSG_WIFI_2) {
 
             return decodeWifi(buf, deviceSession);
+
+        } else if (type == MSG_INFO) {
+
+            Position position = new Position(getProtocolName());
+            position.setDeviceId(deviceSession.getDeviceId());
+
+            getLastLocation(position, null);
+
+            position.set(Position.KEY_POWER, buf.readShort() * 0.01);
+
+            return position;
 
         } else {
 

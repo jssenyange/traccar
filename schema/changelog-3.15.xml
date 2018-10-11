@@ -192,4 +192,5 @@
       <column name="login" type="VARCHAR(128)" />
     </addColumn>
   </changeSet>
+
 </databaseChangeLog>

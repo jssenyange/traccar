@@ -39,9 +39,10 @@ import liquibase.exception.LiquibaseException;
 import liquibase.resource.FileSystemResourceAccessor;
 import liquibase.resource.ResourceAccessor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.traccar.Config;
 import org.traccar.Context;
-import org.traccar.helper.Log;
 import org.traccar.model.Attribute;
 import org.traccar.model.Device;
 import org.traccar.model.Driver;
@@ -66,6 +67,8 @@ import com.zaxxer.hikari.HikariDataSource;
 
 public class DataManager {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(DataManager.class);
+
     public static final String ACTION_SELECT_ALL = "selectAll";
     public static final String ACTION_SELECT = "select";
     public static final String ACTION_INSERT = "insert";
@@ -87,10 +90,6 @@ public class DataManager {
 
         initDatabase();
         initDatabaseSchema();
-    }
-
-    public DataSource getDataSource() {
-        return dataSource;
     }
 
     private void initDatabase() throws Exception {
@@ -210,7 +209,7 @@ public class DataManager {
     private String getQuery(String key) {
         String query = config.getString(key);
         if (query == null) {
-            Log.info("Query not provided: " + key);
+            LOGGER.info("Query not provided: " + key);
         }
         return query;
     }
@@ -235,7 +234,7 @@ public class DataManager {
                 query = constructObjectQuery(action, clazz, extended);
                 config.setString(queryName, query);
             } else {
-                Log.info("Query not provided: " + queryName);
+                LOGGER.info("Query not provided: " + queryName);
             }
         }
 
@@ -262,7 +261,7 @@ public class DataManager {
                         property.equals(User.class) ? ManagedUser.class : property);
                 config.setString(queryName, query);
             } else {
-                Log.info("Query not provided: " + queryName);
+                LOGGER.info("Query not provided: " + queryName);
             }
         }
 
@@ -359,7 +358,8 @@ public class DataManager {
         long historyDays = config.getInteger("database.historyDays");
         if (historyDays != 0) {
             Date timeLimit = new Date(System.currentTimeMillis() - historyDays * 24 * 3600 * 1000);
-            Log.debug("Clearing history earlier than " + new SimpleDateFormat(Log.DATE_FORMAT).format(timeLimit));
+            LOGGER.info(
+                    "Clearing history earlier than " + new SimpleDateFormat(Context.DATE_FORMAT).format(timeLimit));
             QueryBuilder.create(dataSource, getQuery("database.deletePositions"))
                     .setDate("serverTime", timeLimit)
                     .executeUpdate();

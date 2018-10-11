@@ -4,7 +4,11 @@
 
 <properties>
 
-    <!-- SERVER CONFIG -->
+    <!--
+
+    DO NOT MODIFY THIS FILE. Use traccar.xml instead.
+
+    -->
 
     <entry key='web.enable'>true</entry>
     <entry key='web.port'>8082</entry>
@@ -15,7 +19,7 @@
     <entry key='geocoder.type'>google</entry>
 
     <entry key='logger.enable'>true</entry>
-    <entry key='logger.level'>all</entry>
+    <entry key='logger.level'>info</entry>
     <entry key='logger.file'>./logs/tracker-server.log</entry>
 
     <entry key='filter.enable'>true</entry>
@@ -34,12 +38,8 @@
 
     <entry key='commands.queueing'>true</entry>
 
-    <!-- DATABASE CONFIG -->
-
     <entry key='database.ignoreUnknown'>true</entry>
-
     <entry key='database.generateQueries'>true</entry>
-
     <entry key='database.changelog'>./schema/changelog-master.xml</entry>
  
     <entry key='database.loginUser'>
@@ -296,5 +296,11 @@
     <entry key='avema.port'>5171</entry>
     <entry key='autotrack.port'>5172</entry>
     <entry key='tek.port'>5173</entry>
+    <entry key='wristband.port'>5174</entry>
+    <entry key='applet.port'>5175</entry>
+    <entry key='milesmate.port'>5176</entry>
+    <entry key='anytrek.port'>5177</entry>
+    <entry key='smartsole.port'>5178</entry>
+    <entry key='its.port'>5179</entry>
 
 </properties>

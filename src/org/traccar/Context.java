@@ -20,13 +20,15 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
 import com.fasterxml.jackson.datatype.jsr353.JSR353Module;
-import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
-import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
 import org.apache.velocity.app.VelocityEngine;
 import org.eclipse.jetty.util.URIUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.traccar.database.CalendarManager;
 import org.traccar.database.CommandsManager;
 import org.traccar.database.AttributesManager;
@@ -38,6 +40,7 @@ import org.traccar.database.GeofenceManager;
 import org.traccar.database.DriversManager;
 import org.traccar.database.IdentityManager;
 import org.traccar.database.LdapProvider;
+import org.traccar.database.MailManager;
 import org.traccar.database.MaintenancesManager;
 import org.traccar.database.MediaManager;
 import org.traccar.database.NotificationManager;
@@ -54,6 +57,7 @@ import org.traccar.geocoder.FactualGeocoder;
 import org.traccar.geocoder.GeocodeFarmGeocoder;
 import org.traccar.geocoder.GeocodeXyzGeocoder;
 import org.traccar.geocoder.GisgraphyGeocoder;
+import org.traccar.geocoder.BanGeocoder;
 import org.traccar.geocoder.GoogleGeocoder;
 import org.traccar.geocoder.MapQuestGeocoder;
 import org.traccar.geocoder.NominatimGeocoder;
@@ -85,10 +89,21 @@ import org.traccar.web.WebServer;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.ext.ContextResolver;
 
 public final class Context {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(Context.class);
+
+    public static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    public static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.systemDefault());
+
     private Context() {
+    }
+
+    public static String getAppVersion() {
+        return Context.class.getPackage().getImplementationVersion();
     }
 
     private static Config config;
@@ -125,6 +140,12 @@ public final class Context {
 
     public static LdapProvider getLdapProvider() {
         return ldapProvider;
+    }
+
+    private static MailManager mailManager;
+
+    public static MailManager getMailManager() {
+        return mailManager;
     }
 
     private static MediaManager mediaManager;
@@ -300,6 +321,15 @@ public final class Context {
                 config.getDouble("event.motion.speedThreshold", 0.01));
     }
 
+    private static class ObjectMapperContextResolver implements ContextResolver<ObjectMapper> {
+
+        @Override
+        public ObjectMapper getContext(Class<?> clazz) {
+            return objectMapper;
+        }
+
+    }
+
     public static Geocoder initGeocoder() {
         String type = config.getString("geocoder.type", "google");
         String url = config.getString("geocoder.url");
@@ -332,19 +362,17 @@ public final class Context {
                 return new GeocodeFarmGeocoder(key, language, cacheSize, addressFormat);
             case "geocodexyz":
                 return new GeocodeXyzGeocoder(key, cacheSize, addressFormat);
+            case "ban":
+                return new BanGeocoder(cacheSize, addressFormat);
             default:
                 return new GoogleGeocoder(key, language, cacheSize, addressFormat);
         }
     }
 
-    public static void init(String[] arguments) throws Exception {
+    public static void init(String configFile) throws Exception {
 
         config = new Config();
-        if (arguments.length <= 0) {
-            throw new RuntimeException("Configuration file is not provided");
-        }
-
-        config.load(arguments[0]);
+        config.load(configFile);
 
         loggerEnabled = config.getBoolean("logger.enable");
         if (loggerEnabled) {
@@ -359,9 +387,7 @@ public final class Context {
             objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         }
 
-        JacksonJsonProvider jsonProvider =
-                new JacksonJaxbJsonProvider(objectMapper, JacksonJaxbJsonProvider.DEFAULT_ANNOTATIONS);
-        client = ClientBuilder.newClient().register(jsonProvider);
+        client = ClientBuilder.newClient().register(new ObjectMapperContextResolver());
 
 
         if (config.hasKey("database.url")) {
@@ -371,6 +397,8 @@ public final class Context {
         if (config.getBoolean("ldap.enable")) {
             ldapProvider = new LdapProvider(config);
         }
+
+        mailManager = new MailManager();
 
         mediaManager = new MediaManager(config.getString("media.path"));
 
@@ -391,7 +419,7 @@ public final class Context {
         }
 
         if (config.getBoolean("web.enable")) {
-            webServer = new WebServer(config, dataManager.getDataSource());
+            webServer = new WebServer(config);
         }
 
         permissionsManager = new PermissionsManager(dataManager, usersManager);
@@ -405,7 +433,7 @@ public final class Context {
             try {
                 smsManager = (SmsManager) Class.forName(smsManagerClass).newInstance();
             } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
-                Log.warning("Error loading SMS Manager class : " + smsManagerClass, e);
+                LOGGER.warn("Error loading SMS Manager class : " + smsManagerClass, e);
             }
         }
 
@@ -490,9 +518,7 @@ public final class Context {
         config = new Config();
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JSR353Module());
-        JacksonJsonProvider jsonProvider =
-                new JacksonJaxbJsonProvider(objectMapper, JacksonJaxbJsonProvider.DEFAULT_ANNOTATIONS);
-        client = ClientBuilder.newClient().register(jsonProvider);
+        client = ClientBuilder.newClient().register(new ObjectMapperContextResolver());
         identityManager = testIdentityManager;
     }
 

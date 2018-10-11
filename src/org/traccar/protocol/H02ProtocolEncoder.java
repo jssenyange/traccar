@@ -16,20 +16,19 @@
  */
 package org.traccar.protocol;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.traccar.StringProtocolEncoder;
-import org.traccar.helper.Log;
 import org.traccar.model.Command;
+
+import java.util.Date;
 
 public class H02ProtocolEncoder extends StringProtocolEncoder {
 
     private static final String MARKER = "HQ";
 
-    private Object formatCommand(DateTime time, String uniqueId, String type, String... params) {
+    private Object formatCommand(Date time, String uniqueId, String type, String... params) {
 
-        StringBuilder result = new StringBuilder(String.format("*%s,%s,%s,%02d%02d%02d",
-                MARKER, uniqueId, type, time.getHourOfDay(), time.getMinuteOfHour(), time.getSecondOfMinute()));
+        StringBuilder result = new StringBuilder(
+                String.format("*%s,%s,%s,%4$tH%4$tM%4$tS", MARKER, uniqueId, type, time));
 
         for (String param : params) {
             result.append(",").append(param);
@@ -40,7 +39,7 @@ public class H02ProtocolEncoder extends StringProtocolEncoder {
         return result.toString();
     }
 
-    protected Object encodeCommand(Command command, DateTime time) {
+    protected Object encodeCommand(Command command, Date time) {
         String uniqueId = getUniqueId(command.getDeviceId());
 
         switch (command.getType()) {
@@ -57,16 +56,13 @@ public class H02ProtocolEncoder extends StringProtocolEncoder {
                 return formatCommand(
                         time, uniqueId, "S71", "22", command.getAttributes().get(Command.KEY_FREQUENCY).toString());
             default:
-                Log.warning(new UnsupportedOperationException(command.getType()));
-                break;
+                return null;
         }
-
-        return null;
     }
 
     @Override
     protected Object encodeCommand(Command command) {
-        return encodeCommand(command, new DateTime(DateTimeZone.UTC));
+        return encodeCommand(command, new Date());
     }
 
 }
