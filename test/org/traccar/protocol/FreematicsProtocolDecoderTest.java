@@ -8,7 +8,10 @@ public class FreematicsProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecode() throws Exception {
 
-        FreematicsProtocolDecoder decoder = new FreematicsProtocolDecoder(new FreematicsProtocol());
+        FreematicsProtocolDecoder decoder = new FreematicsProtocolDecoder(null);
+
+        verifyNull(decoder, text(
+                "1#EV=2,TS=1871902,ID=ESP32305C06C40A24*AC"));
 
         verifyNull(decoder, text(
                 "0#EV=1,TS=23930,ID=ID1C6606C40A24,SK=TEST_SERVER_KEY*49"));

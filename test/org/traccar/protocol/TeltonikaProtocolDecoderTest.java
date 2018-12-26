@@ -9,10 +9,13 @@ public class TeltonikaProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecode() throws Exception {
 
-        TeltonikaProtocolDecoder decoder = new TeltonikaProtocolDecoder(new TeltonikaProtocol(), false);
+        TeltonikaProtocolDecoder decoder = new TeltonikaProtocolDecoder(null, false);
 
         verifyNull(decoder, binary(
                 "000F313233343536373839303132333435"));
+
+        verifyPositions(decoder, false, binary(
+                "00000000000000818e0100000166e368a510000f0d8b5b20961c35008d010308000000000014000900ef0000f00100500100150400c800004501001e00002500002900000a00b5000800b60007004230dc0018000000430fcb0044005f001103de001200e50013001200240000000000000001010000113141314a433534343452373235323336370100005e99"));
 
         verifyPositions(decoder, false, binary(
                 "000000000000009D10020000013feb55ff74000f0ea850209a690000AE00B90B00000000070A050001000002000003000004000120000200180000004601290200C700000000004C0000000001003E00000000000000000000015B198C7498000F0DBC502095872F00AE00B90B00000000070A050001000002000003000004000120000200180000004601290200C700000000004C0000000001003E000000000000000002000009A5"));
@@ -97,7 +100,7 @@ public class TeltonikaProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecodeConnectionless() throws Exception {
 
-        TeltonikaProtocolDecoder decoder = new TeltonikaProtocolDecoder(new TeltonikaProtocol(), true);
+        TeltonikaProtocolDecoder decoder = new TeltonikaProtocolDecoder(null, true);
 
         verifyPositions(decoder, false, binary(
                 "0049cafe0122000f33353734353430373237313339373508010000015d3766f6a800003eef961ec6215e0063006d09003100070401000200f001c8000242381c18003201c7000000e10001"));

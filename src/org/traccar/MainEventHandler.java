@@ -19,13 +19,14 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramChannel;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.traccar.helper.DateUtil;
 import org.traccar.model.Position;
 
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -60,8 +61,7 @@ public class MainEventHandler extends ChannelInboundHandlerAdapter {
             StringBuilder s = new StringBuilder();
             s.append(formatChannel(ctx.channel())).append(" ");
             s.append("id: ").append(uniqueId);
-            s.append(", time: ").append(
-                    new SimpleDateFormat(Context.DATE_FORMAT).format(position.getFixTime()));
+            s.append(", time: ").append(DateUtil.formatDate(position.getFixTime(), false));
             s.append(", lat: ").append(String.format("%.5f", position.getLatitude()));
             s.append(", lon: ").append(String.format("%.5f", position.getLongitude()));
             if (position.getSpeed() > 0) {
@@ -97,9 +97,8 @@ public class MainEventHandler extends ChannelInboundHandlerAdapter {
         LOGGER.info(formatChannel(ctx.channel()) + " disconnected");
         closeChannel(ctx.channel());
 
-        BaseProtocolDecoder protocolDecoder = (BaseProtocolDecoder) ctx.pipeline().get("objectDecoder");
-        if (ctx.pipeline().get("httpDecoder") == null
-                && !connectionlessProtocols.contains(protocolDecoder.getProtocolName())) {
+        if (BasePipelineFactory.getHandler(ctx.pipeline(), HttpRequestDecoder.class) == null
+                && !connectionlessProtocols.contains(ctx.pipeline().get(BaseProtocolDecoder.class).getProtocolName())) {
             Context.getConnectionManager().removeActiveDevice(ctx.channel());
         }
     }

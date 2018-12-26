@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "version": "4.0",
+        "version": "4.2",
         "title": "traccar"
     },
     "host": "demo.traccar.org",
@@ -286,9 +286,9 @@
                 }
             }
         },
-        "/devices/{id}/distance": {
+        "/devices/{id}/accumulators": {
             "put": {
-                "summary": "Update the distance counter of the Device",
+                "summary": "Update total distance and hours of the Device",
                 "parameters": [
                     {
                         "$ref": "#/parameters/entityId"
@@ -298,7 +298,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/DeviceTotalDistance"
+                            "$ref": "#/definitions/DeviceAccumulators"
                         }
                     }
                 ],
@@ -1351,10 +1351,10 @@
                 }
             }
         },
-        "/maintenances": {
+        "/maintenance": {
             "get": {
-                "summary": "Fetch a list of Maintenances",
-                "description": "Without params, it returns a list of Maintenances the user has access to",
+                "summary": "Fetch a list of Maintenance",
+                "description": "Without params, it returns a list of Maintenance the user has access to",
                 "parameters": [
                     {
                         "$ref": "#/parameters/all"
@@ -1401,7 +1401,7 @@
                 }
             }
         },
-        "/maintenances/{id}": {
+        "/maintenance/{id}": {
             "put": {
                 "summary": "Update a Maintenance",
                 "parameters": [
@@ -1977,7 +1977,7 @@
                 }
             }
         },
-        "DeviceTotalDistance": {
+        "DeviceAccumulators": {
             "properties": {
                 "deviceId": {
                     "type": "integer"
@@ -1985,6 +1985,9 @@
                 "totalDistance": {
                     "type": "number",
                     "description": "in meters"
+                },
+                "hours": {
+                    "type": "number"
                 }
             }
         },

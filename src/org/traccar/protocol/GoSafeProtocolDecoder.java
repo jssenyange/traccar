@@ -19,6 +19,7 @@ import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
 import org.traccar.NetworkMessage;
+import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
@@ -36,7 +37,7 @@ import java.util.regex.Pattern;
 
 public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
 
-    public GoSafeProtocolDecoder(GoSafeProtocol protocol) {
+    public GoSafeProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
@@ -69,7 +70,12 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
     private void decodeFragment(Position position, String fragment) {
         int dataIndex = fragment.indexOf(':');
         int index = 0;
-        String[] values = fragment.substring(dataIndex + 1).split(";");
+        String[] values;
+        if (fragment.length() == dataIndex + 1) {
+            values = new String[0];
+        } else {
+            values = fragment.substring(dataIndex + 1).split(";");
+        }
         switch (fragment.substring(0, dataIndex)) {
             case "GPS":
                 position.setValid(values[index++].equals("A"));
@@ -106,7 +112,7 @@ public class GoSafeProtocolDecoder extends BaseProtocolDecoder {
                 break;
             case "COT":
                 if (index < values.length) {
-                    position.set(Position.KEY_ODOMETER, Integer.parseInt(values[index++]));
+                    position.set(Position.KEY_ODOMETER, Long.parseLong(values[index++]));
                 }
                 if (index < values.length) {
                     String[] hours = values[index].split("-");

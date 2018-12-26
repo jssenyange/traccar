@@ -23,6 +23,7 @@ import org.traccar.BaseProtocolDecoder;
 import org.traccar.Context;
 import org.traccar.DeviceSession;
 import org.traccar.NetworkMessage;
+import org.traccar.Protocol;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
 
@@ -38,7 +39,7 @@ import java.util.Set;
 
 public class GalileoProtocolDecoder extends BaseProtocolDecoder {
 
-    public GalileoProtocolDecoder(GalileoProtocol protocol) {
+    public GalileoProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
@@ -159,10 +160,10 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
                 position.set(Position.KEY_STATUS, buf.readUnsignedShortLE());
                 break;
             case 0x41:
-                position.set(Position.KEY_POWER, buf.readUnsignedShortLE());
+                position.set(Position.KEY_POWER, buf.readUnsignedShortLE() / 1000.0);
                 break;
             case 0x42:
-                position.set(Position.KEY_BATTERY, buf.readUnsignedShortLE());
+                position.set(Position.KEY_BATTERY, buf.readUnsignedShortLE() / 1000.0);
                 break;
             case 0x43:
                 position.set(Position.KEY_DEVICE_TEMP, buf.readByte());
@@ -175,6 +176,9 @@ public class GalileoProtocolDecoder extends BaseProtocolDecoder {
                 break;
             case 0x46:
                 position.set(Position.KEY_INPUT, buf.readUnsignedShortLE());
+                break;
+            case 0x48:
+                position.set("statusExtended", buf.readUnsignedShortLE());
                 break;
             case 0x58:
                 position.set("rs2320", buf.readUnsignedShortLE());

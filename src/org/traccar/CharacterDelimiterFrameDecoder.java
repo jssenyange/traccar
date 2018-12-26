@@ -50,8 +50,16 @@ public class CharacterDelimiterFrameDecoder extends DelimiterBasedFrameDecoder {
         super(maxFrameLength, createDelimiter(delimiter));
     }
 
+    public CharacterDelimiterFrameDecoder(int maxFrameLength, boolean stripDelimiter, String delimiter) {
+        super(maxFrameLength, stripDelimiter, createDelimiter(delimiter));
+    }
+
     public CharacterDelimiterFrameDecoder(int maxFrameLength, String... delimiters) {
         super(maxFrameLength, convertDelimiters(delimiters));
+    }
+
+    public CharacterDelimiterFrameDecoder(int maxFrameLength, boolean stripDelimiter, String... delimiters) {
+        super(maxFrameLength, stripDelimiter, convertDelimiters(delimiters));
     }
 
 }

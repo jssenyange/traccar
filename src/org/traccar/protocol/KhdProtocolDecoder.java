@@ -21,6 +21,7 @@ import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
 import org.traccar.NetworkMessage;
+import org.traccar.Protocol;
 import org.traccar.helper.BcdUtil;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.DateBuilder;
@@ -31,7 +32,7 @@ import java.net.SocketAddress;
 
 public class KhdProtocolDecoder extends BaseProtocolDecoder {
 
-    public KhdProtocolDecoder(KhdProtocol protocol) {
+    public KhdProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
@@ -49,7 +50,10 @@ public class KhdProtocolDecoder extends BaseProtocolDecoder {
     public static final int MSG_POSITION_UPLOAD = 0x80;
     public static final int MSG_POSITION_REUPLOAD = 0x8E;
     public static final int MSG_ALARM = 0x82;
+    public static final int MSG_ADMIN_NUMBER = 0x83;
+    public static final int MSG_SEND_TEXT = 0x84;
     public static final int MSG_REPLY = 0x85;
+    public static final int MSG_SMS_ALARM_SWITCH = 0x86;
     public static final int MSG_PERIPHERAL = 0xA3;
 
     @Override
@@ -61,6 +65,26 @@ public class KhdProtocolDecoder extends BaseProtocolDecoder {
         buf.skipBytes(2); // header
         int type = buf.readUnsignedByte();
         buf.readUnsignedShort(); // size
+
+        if (type == MSG_LOGIN || type == MSG_ADMIN_NUMBER || type == MSG_SEND_TEXT
+                || type == MSG_SMS_ALARM_SWITCH || type == MSG_POSITION_REUPLOAD) {
+
+            ByteBuf response = Unpooled.buffer();
+            response.writeByte(0x29);
+            response.writeByte(0x29); // header
+            response.writeByte(MSG_CONFIRMATION);
+            response.writeShort(5); // size
+            response.writeByte(buf.getByte(buf.writerIndex() - 2));
+            response.writeByte(type);
+            response.writeByte(buf.writerIndex() > 9 ? buf.getByte(9) : 0); // 10th byte
+            response.writeByte(Checksum.xor(response.nioBuffer()));
+            response.writeByte(0x0D); // ending
+
+            if (channel != null) {
+                channel.writeAndFlush(new NetworkMessage(response, remoteAddress));
+            }
+
+        }
 
         if (type == MSG_ON_DEMAND || type == MSG_POSITION_UPLOAD || type == MSG_POSITION_REUPLOAD
                 || type == MSG_ALARM || type == MSG_REPLY || type == MSG_PERIPHERAL) {
@@ -124,22 +148,6 @@ public class KhdProtocolDecoder extends BaseProtocolDecoder {
             }
 
             return position;
-
-        } else if (type == MSG_LOGIN && channel != null) {
-
-            buf.skipBytes(4); // serial number
-            buf.readByte(); // reserved
-
-            ByteBuf response = Unpooled.buffer();
-            response.writeByte(0x29); response.writeByte(0x29); // header
-            response.writeByte(MSG_CONFIRMATION);
-            response.writeShort(5); // size
-            response.writeByte(buf.readUnsignedByte());
-            response.writeByte(type);
-            response.writeByte(0); // reserved
-            response.writeByte(Checksum.xor(response.nioBuffer()));
-            response.writeByte(0x0D); // ending
-            channel.writeAndFlush(new NetworkMessage(response, remoteAddress));
 
         }
 

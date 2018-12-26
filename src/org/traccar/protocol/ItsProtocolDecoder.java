@@ -18,6 +18,7 @@ package org.traccar.protocol;
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
+import org.traccar.Protocol;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
 import org.traccar.helper.UnitsConverter;
@@ -28,24 +29,42 @@ import java.util.regex.Pattern;
 
 public class ItsProtocolDecoder extends BaseProtocolDecoder {
 
-    public ItsProtocolDecoder(ItsProtocol protocol) {
+    public ItsProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
     private static final Pattern PATTERN = new PatternBuilder()
             .text("$,")
-            .expression("[^,]+,")                // header
+            .expression("[^,]+,")                // event
+            .groupBegin()
+            .expression("[^,]+,")                // vendor
+            .expression("[^,]+,")                // firmware version
+            .groupEnd("?")
             .expression("[^,]+,")                // type
+            .groupBegin()
+            .number("d+,")
+            .expression("[LH],")                 // history
+            .groupEnd("?")
             .number("(d{15}),")                  // imei
+            .groupBegin()
             .expression("(?:NM|SP),")            // status
-            .number("(dd),(dd),(dddd),")         // date (ddmmyyyy)
-            .number("(dd),(dd),(dd),")           // time (hhmmss)
-            .expression("([AV]),")               // valid
+            .or()
+            .expression("[^,]+,")                // vehicle registration
+            .number("([01]),")                   // valid
+            .groupEnd()
+            .number("(dd),?(dd),?(dddd),")       // date (ddmmyyyy)
+            .number("(dd),?(dd),?(dd),")         // time (hhmmss)
+            .expression("([AV]),").optional()    // valid
             .number("(d+.d+),([NS]),")           // latitude
             .number("(d+.d+),([EW]),")           // longitude
+            .groupBegin()
+            .number("(d+.d+),")                  // speed
+            .number("(d+.d+),")                  // course
+            .number("(d+),")                     // satellites
+            .or()
             .number("(-?d+.d+),")                // altitude
             .number("(d+.d+),")                  // speed
-            .number("(d+.d+),")                  // distance
+            .groupEnd()
             .any()
             .compile();
 
@@ -66,14 +85,26 @@ public class ItsProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
 
+        if (parser.hasNext()) {
+            position.setValid(parser.nextInt() == 1);
+        }
         position.setTime(parser.nextDateTime(Parser.DateTimeFormat.DMY_HMS));
-        position.setValid(parser.next().equals("A"));
+        if (parser.hasNext()) {
+            position.setValid(parser.next().equals("A"));
+        }
         position.setLatitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_HEM));
         position.setLongitude(parser.nextCoordinate(Parser.CoordinateFormat.DEG_HEM));
-        position.setAltitude(parser.nextDouble());
-        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
 
-        position.set(Position.KEY_ODOMETER, parser.nextDouble());
+        if (parser.hasNext(3)) {
+            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
+            position.setCourse(parser.nextDouble());
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
+        }
+
+        if (parser.hasNext()) {
+            position.setAltitude(parser.nextDouble(0));
+            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble()));
+        }
 
         return position;
     }

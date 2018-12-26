@@ -19,11 +19,13 @@ import org.traccar.Config;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.logging.ConsoleHandler;
@@ -59,11 +61,14 @@ public final class Log {
                     if (writer != null && !suffix.equals(this.suffix)) {
                         writer.close();
                         writer = null;
-                        new File(name).renameTo(new File(name + "." + this.suffix));
+                        if (!new File(name).renameTo(new File(name + "." + this.suffix))) {
+                            throw new RuntimeException("Log file renaiming failed");
+                        }
                     }
                     if (writer == null) {
                         this.suffix = suffix;
-                        writer = new BufferedWriter(new FileWriter(name, true));
+                        writer = new BufferedWriter(
+                                new OutputStreamWriter(new FileOutputStream(name, true), StandardCharsets.UTF_8));
                     }
                     writer.write(getFormatter().format(record));
                     writer.flush();
@@ -74,7 +79,7 @@ public final class Log {
         }
 
         @Override
-        public void flush() {
+        public synchronized void flush() {
             if (writer != null) {
                 try {
                     writer.flush();
@@ -85,7 +90,7 @@ public final class Log {
         }
 
         @Override
-        public void close() throws SecurityException {
+        public synchronized void close() throws SecurityException {
             if (writer != null) {
                 try {
                     writer.close();
@@ -151,7 +156,24 @@ public final class Log {
 
     }
 
+    public static void setupDefaultLogger() {
+        File jarPath = new File(ClassLoader.getSystemClassLoader().getResource(".").getPath());
+        File logsPath = new File(jarPath, "logs");
+        if (!logsPath.exists() || !logsPath.isDirectory()) {
+            logsPath = jarPath;
+        }
+        setupLogger(false, new File(logsPath, "tracker-server.log").getPath(), Level.WARNING.getName(), false);
+    }
+
     public static void setupLogger(Config config) {
+        setupLogger(
+                config.getBoolean("logger.console"),
+                config.getString("logger.file"),
+                config.getString("logger.level"),
+                config.getBoolean("logger.fullStackTraces"));
+    }
+
+    private static void setupLogger(boolean console, String file, String levelString, boolean fullStackTraces) {
 
         Logger rootLogger = Logger.getLogger("");
         for (Handler handler : rootLogger.getHandlers()) {
@@ -159,15 +181,15 @@ public final class Log {
         }
 
         Handler handler;
-        if (config.getBoolean("logger.console")) {
+        if (console) {
             handler = new ConsoleHandler();
         } else {
-            handler = new RollingFileHandler(config.getString("logger.file"));
+            handler = new RollingFileHandler(file);
         }
 
-        handler.setFormatter(new LogFormatter(config.getBoolean("logger.fullStackTraces")));
+        handler.setFormatter(new LogFormatter(fullStackTraces));
 
-        Level level = Level.parse(config.getString("logger.level").toUpperCase());
+        Level level = Level.parse(levelString.toUpperCase());
         rootLogger.setLevel(level);
         handler.setLevel(level);
         handler.setFilter(record -> record != null && !record.getLoggerName().startsWith("sun"));

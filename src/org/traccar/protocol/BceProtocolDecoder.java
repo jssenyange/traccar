@@ -21,6 +21,7 @@ import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
 import org.traccar.NetworkMessage;
+import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.CellTower;
@@ -34,7 +35,7 @@ import java.util.List;
 
 public class BceProtocolDecoder extends BaseProtocolDecoder {
 
-    public BceProtocolDecoder(BceProtocol protocol) {
+    public BceProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
@@ -64,6 +65,11 @@ public class BceProtocolDecoder extends BaseProtocolDecoder {
 
             int dataEnd = buf.readUnsignedShortLE() + buf.readerIndex();
             int type = buf.readUnsignedByte();
+
+            if (type != MSG_ASYNC_STACK && type != MSG_TIME_TRIGGERED) {
+                return null;
+            }
+
             int confirmKey = buf.readUnsignedByte() & 0x7F;
 
             while (buf.readerIndex() < dataEnd) {

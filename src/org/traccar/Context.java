@@ -20,8 +20,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
 import com.fasterxml.jackson.datatype.jsr353.JSR353Module;
@@ -59,12 +57,15 @@ import org.traccar.geocoder.GeocodeXyzGeocoder;
 import org.traccar.geocoder.GisgraphyGeocoder;
 import org.traccar.geocoder.BanGeocoder;
 import org.traccar.geocoder.GoogleGeocoder;
+import org.traccar.geocoder.HereGeocoder;
 import org.traccar.geocoder.MapQuestGeocoder;
 import org.traccar.geocoder.NominatimGeocoder;
 import org.traccar.geocoder.OpenCageGeocoder;
+import org.traccar.geocoder.MapmyIndiaGeocoder;
 import org.traccar.geocoder.Geocoder;
 import org.traccar.geolocation.UnwiredGeolocationProvider;
 import org.traccar.helper.Log;
+import org.traccar.helper.SanitizerModule;
 import org.traccar.model.Attribute;
 import org.traccar.model.BaseModel;
 import org.traccar.model.Calendar;
@@ -85,6 +86,7 @@ import org.traccar.notification.JsonTypeEventForwarder;
 import org.traccar.notification.NotificatorManager;
 import org.traccar.reports.model.TripsConfig;
 import org.traccar.sms.SmsManager;
+import org.traccar.sms.smpp.SmppClient;
 import org.traccar.web.WebServer;
 
 import javax.ws.rs.client.Client;
@@ -94,10 +96,6 @@ import javax.ws.rs.ext.ContextResolver;
 public final class Context {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Context.class);
-
-    public static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
-    public static final DateTimeFormatter DATE_FORMATTER =
-            DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.systemDefault());
 
     private Context() {
     }
@@ -110,12 +108,6 @@ public final class Context {
 
     public static Config getConfig() {
         return config;
-    }
-
-    private static boolean loggerEnabled;
-
-    public static boolean isLoggerEnabled() {
-        return loggerEnabled;
     }
 
     private static ObjectMapper objectMapper;
@@ -333,6 +325,7 @@ public final class Context {
     public static Geocoder initGeocoder() {
         String type = config.getString("geocoder.type", "google");
         String url = config.getString("geocoder.url");
+        String id = config.getString("geocoder.id");
         String key = config.getString("geocoder.key");
         String language = config.getString("geocoder.language");
 
@@ -364,6 +357,10 @@ public final class Context {
                 return new GeocodeXyzGeocoder(key, cacheSize, addressFormat);
             case "ban":
                 return new BanGeocoder(cacheSize, addressFormat);
+            case "here":
+                return new HereGeocoder(id, key, language, cacheSize, addressFormat);
+            case "mapmyindia":
+                return new MapmyIndiaGeocoder(url, key, cacheSize, addressFormat);
             default:
                 return new GoogleGeocoder(key, language, cacheSize, addressFormat);
         }
@@ -371,15 +368,20 @@ public final class Context {
 
     public static void init(String configFile) throws Exception {
 
-        config = new Config();
-        config.load(configFile);
+        try {
+            config = new Config();
+            config.load(configFile);
+        } catch (Exception e) {
+            Log.setupDefaultLogger();
+            throw e;
+        }
 
-        loggerEnabled = config.getBoolean("logger.enable");
-        if (loggerEnabled) {
+        if (config.getBoolean("logger.enable")) {
             Log.setupLogger(config);
         }
 
         objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new SanitizerModule());
         objectMapper.registerModule(new JSR353Module());
         objectMapper.setConfig(
                 objectMapper.getSerializationConfig().without(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS));
@@ -429,7 +431,7 @@ public final class Context {
         tripsConfig = initTripsConfig();
 
         if (config.getBoolean("sms.enable")) {
-            final String smsManagerClass = config.getString("sms.manager.class", "org.traccar.smpp.SmppClient");
+            final String smsManagerClass = config.getString("sms.manager.class", SmppClient.class.getCanonicalName());
             try {
                 smsManager = (SmsManager) Class.forName(smsManagerClass).newInstance();
             } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {

@@ -19,6 +19,7 @@ import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
 import org.traccar.DeviceSession;
 import org.traccar.NetworkMessage;
+import org.traccar.Protocol;
 import org.traccar.helper.Checksum;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.UnitsConverter;
@@ -31,14 +32,15 @@ import java.util.List;
 
 public class FreematicsProtocolDecoder extends BaseProtocolDecoder {
 
-    public FreematicsProtocolDecoder(FreematicsProtocol protocol) {
+    public FreematicsProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
     private Object decodeEvent(
-            Channel channel, SocketAddress remoteAddress, String sentence) throws Exception {
+            Channel channel, SocketAddress remoteAddress, String sentence) {
 
         DeviceSession deviceSession = null;
+        String event = null;
         String time = null;
 
         for (String pair : sentence.split(",")) {
@@ -52,6 +54,8 @@ public class FreematicsProtocolDecoder extends BaseProtocolDecoder {
                         deviceSession = getDeviceSession(channel, remoteAddress, value);
                     }
                     break;
+                case "EV":
+                    event = value;
                 case "TS":
                     time = value;
                     break;
@@ -60,8 +64,8 @@ public class FreematicsProtocolDecoder extends BaseProtocolDecoder {
             }
         }
 
-        if (channel != null && deviceSession != null && time != null) {
-            String message = "1#EV=1,RX=1,TS=" + time;
+        if (channel != null && deviceSession != null && event != null && time != null) {
+            String message = String.format("1#EV=%s,RX=1,TS=%s", event, time);
             message += '*' + Checksum.sum(message);
             channel.writeAndFlush(new NetworkMessage(message, remoteAddress));
         }
