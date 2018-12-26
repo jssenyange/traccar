@@ -97,7 +97,7 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
                         userId = SessionResource.rememberMeLogin(request, response);
                         isRememberMeLogin = userId != null;
                     } catch (SQLException e) {
-                        LOGGER.warn("Remember me login SQL error",e);
+                        LOGGER.warn("Remember me login SQL error", e);
                     }
                 }
                 if (userId != null) {

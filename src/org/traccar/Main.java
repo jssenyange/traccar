@@ -121,7 +121,7 @@ public final class Main {
                     try {
                         Context.getPersistentLoginManager().deleteStalePersistentLogins();
                     } catch (Exception exception) {
-                        LOGGER.warn("Clear stale persistent logins error",exception);
+                        LOGGER.warn("Clear stale persistent logins error", exception);
                     }
                 }
             }, 0, CLEAN_PERIOD);
