@@ -8,6 +8,13 @@
 
   <changeSet author="author" id="changelog-3.10.1">
 
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="tc_users" />
+      </not>
+    </preConditions>
+
+
     <createTable tableName="persistent_login">
       <column name="id" type="BIGINT" autoIncrement="true">
         <constraints primaryKey="true" />
