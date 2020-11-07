@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ package org.traccar.api;
 import java.security.Principal;
 
 public class UserPrincipal implements Principal {
-
-    private long userId;
-    private boolean isRememberMeLogin;
+    
+    private final boolean isRememberMeLogin;
+    private final long userId;
 
     public UserPrincipal(long userId, boolean isRememberMeLogin) {
         this.userId = userId;

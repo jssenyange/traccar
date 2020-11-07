@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import org.traccar.database.MaintenancesManager;
 import org.traccar.database.MediaManager;
 import org.traccar.database.NotificationManager;
 import org.traccar.database.PermissionsManager;
+import org.traccar.schedule.ScheduleManager;
 import org.traccar.database.PersistentLoginManager;
 import org.traccar.database.UsersManager;
 import org.traccar.geocoder.Geocoder;
@@ -164,6 +165,12 @@ public final class Context {
 
     public static ServerManager getServerManager() {
         return serverManager;
+    }
+
+    private static ScheduleManager scheduleManager;
+
+    public static ScheduleManager getScheduleManager() {
+        return scheduleManager;
     }
 
     private static GeofenceManager geofenceManager;
@@ -339,6 +346,7 @@ public final class Context {
         }
 
         serverManager = new ServerManager();
+        scheduleManager = new ScheduleManager();
 
         if (config.getBoolean("event.forward.enable")) {
             eventForwarder = new JsonTypeEventForwarder();
