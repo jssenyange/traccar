@@ -38,7 +38,7 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
 
     private static final Pattern PATTERN = new PatternBuilder()
             .expression("..;")                   // header
-            .number("(d+);")                     // index
+            .number("d+;")
             .number("(d+);")                     // imei
             .text("R;")                          // data type
             .number("(d+)[+;]")                  // satellites
@@ -53,6 +53,7 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+)[+;]")                  // message type
             .number("(d+)[+;]")                  // odometer
             .groupEnd("?")
+            .number("(d+)[+;]")                  // adc 1
             .number("(d+)")                      // voltage
             .any()
             .compile();
@@ -61,14 +62,10 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
     protected Object decode(
             Channel channel, SocketAddress remoteAddress, Object msg) throws Exception {
 
-        Parser parser = new Parser(PATTERN, (String) msg);
+        String sentence = (String) msg;
+        Parser parser = new Parser(PATTERN, sentence);
         if (!parser.matches()) {
             return null;
-        }
-
-        int index = parser.nextInt();
-        if (channel instanceof DatagramChannel) {
-            channel.writeAndFlush(new NetworkMessage("ACK," + index + "#", remoteAddress));
         }
 
         DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, parser.next());
@@ -97,7 +94,13 @@ public class EskyProtocolDecoder extends BaseProtocolDecoder {
             position.set(Position.KEY_ODOMETER, parser.nextInt());
         }
 
-        position.set(Position.KEY_BATTERY, parser.nextInt() * 0.001);
+        position.set(Position.PREFIX_ADC + 1, parser.nextInt());
+        position.set(Position.KEY_BATTERY, parser.nextInt() * 0.01);
+
+        int index = sentence.lastIndexOf('+');
+        if (index > 0 && channel instanceof DatagramChannel) {
+            channel.writeAndFlush(new NetworkMessage("ACK," + sentence.substring(index + 1) + "#", remoteAddress));
+        }
 
         return position;
     }

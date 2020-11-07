@@ -2,6 +2,7 @@ package org.traccar.protocol;
 
 import org.junit.Test;
 import org.traccar.ProtocolTest;
+import org.traccar.model.Position;
 
 public class StarLinkProtocolDecoderTest extends ProtocolTest {
 
@@ -9,6 +10,31 @@ public class StarLinkProtocolDecoderTest extends ProtocolTest {
     public void testDecode() throws Exception {
 
         StarLinkProtocolDecoder decoder = new StarLinkProtocolDecoder(null);
+
+        decoder.setFormat("#IMEI#,#EDT#,#EDSC#,#EID#,#PDT#,#LAT#,#LONG#,#SPDK#,#IGNL#,#HEAD#,#ODO#,#DUR#,#TDUR#,#VIN#,#VBAT#,#BATC#,#SATU#,#CSS#,#IN2#,#TVI#,#OUT1#,#OUT2#,#OUT3#,#OUTC#");
+
+        verifyAttributes(decoder, text(
+                "$SLU862549048423605,06,22597,862549048423605,201102121748,Location,01,201102121744,+4133.1223,+00205.8716,54,1,174,007572,2,7712,13.094,00.039,,11,75,1,29.0,0,0,0,0,1,4*6D"));
+
+        decoder.setFormat("#IMEI#,#EDT#,#PDT#,#LAT#,#LONG#,#SPD#,#IGN#,#ODO#,#DUR#,#TDUR#,#LAC#,#CID#,#VIN#,#VBAT#,#EID#,#EDSC#,#DRV#,#SATU#,#CSS#,#OUT1#,#OUT2#,#IN2#,#IND#");
+
+        verifyAttribute(decoder, text(
+                "$SLU351580050543640,06,101,351580050543640,200927184734,200927184724,+4222.4186,+00153.1426,000.0,0,000008,,582,21269,214241628,00.213,03.407,09,Lost Power,0,5,96,0,0,0,1,,,,,,,,,,,,*10"),
+                Position.KEY_RSSI, 96);
+
+        decoder.setFormat("#EDT#,#EID#,#PDT#,#LAT#,#LONG#,#SPD#,#HEAD#,#ODO#,#LAC#,#CID#,#VIN#,#VBAT#,#TI1#,#TS1#,#TV1#,#TH1#,#TD1#,#EDSC#,#TI2#,#TS2#,#TV2#,#TH2#,#TD2#");
+
+        verifyAttribute(decoder, text(
+                "$SLU351580050356894,06,1192,200811104100,01,200811104058,+4121.8168,+00205.1158,000.0,069,000069,2080,15139043,12.221,03.533,D469062D44D6,1,29.7,56.9,CAEaBtRpBi1E1jhLSJoYKLkEINIEWABgAmgAcAJ4AIABAIgBAA==,Location,D2567108639E,1,30.2,55.3,CAIaBtJWcQhjnjhPSPIXKKkEINwEWEpgA2gAcAJ4AIABAIgBAA==,1,99*5A"),
+                "sensor2Voltage", 3058 * 0.001);
+
+        decoder.setFormat("#IMEI#,#EDT#,#PDT#,#LAT#,#LONG#,#SPD#,#IGN#,#ODO#,#DUR#,#TDUR#,#LAC#,#CID#,#VIN#,#VBAT#,#EID#,#EDSC#,#DRV#,#SATU#,#CSS#,#OUT1#,#OUT2#");
+
+        verifyAttribute(decoder, text(
+                "$SLU862549048472545,06,25,862549048472545,200304085936,200304085937,+4126.1828,+00209.8472,013.9,0,000000,,1,2120,6306,14.452,03.980,33,External Device,0,9,67,0,0,7,0,137,13,2,5625,-11,-20,99*1F"),
+                Position.KEY_IGNITION, false);
+
+        decoder.setFormat("#EDT#,#EID#,#PDT#,#LAT#,#LONG#,#SPD#,#HEAD#,#ODO#,#IN1#,#IN2#,#IN3#,#IN4#,#OUT1#,#OUT2#,#OUT3#,#OUT4#,#LAC#,#CID#,#VIN#,#VBAT#,#DEST#,#IGN#,#ENG#");
 
         verifyAttributes(decoder, text(
                 "$SLU068328,06,55,170518122023,16,,,,,,000000,1,1,0,0,0,0,0,0,10443,32722,12.664,03.910,,0,0,,01000001FDB3A9*BF"));

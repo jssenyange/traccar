@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2016 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package org.traccar.api.resource;
 
 import org.traccar.Context;
 import org.traccar.api.BaseResource;
-import org.traccar.helper.DateUtil;
 import org.traccar.model.Position;
 import org.traccar.web.CsvBuilder;
 import org.traccar.web.GpxBuilder;
@@ -34,6 +33,8 @@ import javax.ws.rs.core.Response;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 @Path("positions")
@@ -49,7 +50,7 @@ public class PositionResource extends BaseResource {
     @GET
     public Collection<Position> getJson(
             @QueryParam("deviceId") long deviceId, @QueryParam("id") List<Long> positionIds,
-            @QueryParam("from") String from, @QueryParam("to") String to)
+            @QueryParam("from") Date from, @QueryParam("to") Date to)
             throws SQLException {
         if (!positionIds.isEmpty()) {
             ArrayList<Position> positions = new ArrayList<>();
@@ -63,33 +64,34 @@ public class PositionResource extends BaseResource {
             return Context.getDeviceManager().getInitialState(getUserId());
         } else {
             Context.getPermissionsManager().checkDevice(getUserId(), deviceId);
-            return Context.getDataManager().getPositions(
-                    deviceId, DateUtil.parseDate(from), DateUtil.parseDate(to));
+            if (from != null && to != null) {
+                return Context.getDataManager().getPositions(deviceId, from, to);
+            } else {
+                return Collections.singleton(Context.getDeviceManager().getLastPosition(deviceId));
+            }
         }
     }
 
     @GET
     @Produces(TEXT_CSV)
     public Response getCsv(
-            @QueryParam("deviceId") long deviceId, @QueryParam("from") String from, @QueryParam("to") String to)
+            @QueryParam("deviceId") long deviceId, @QueryParam("from") Date from, @QueryParam("to") Date to)
             throws SQLException {
         Context.getPermissionsManager().checkDevice(getUserId(), deviceId);
         CsvBuilder csv = new CsvBuilder();
         csv.addHeaderLine(new Position());
-        csv.addArray(Context.getDataManager().getPositions(
-                deviceId, DateUtil.parseDate(from), DateUtil.parseDate(to)));
+        csv.addArray(Context.getDataManager().getPositions(deviceId, from, to));
         return Response.ok(csv.build()).header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISPOSITION_VALUE_CSV).build();
     }
 
     @GET
     @Produces(GPX)
     public Response getGpx(
-            @QueryParam("deviceId") long deviceId, @QueryParam("from") String from, @QueryParam("to") String to)
+            @QueryParam("deviceId") long deviceId, @QueryParam("from") Date from, @QueryParam("to") Date to)
             throws SQLException {
         Context.getPermissionsManager().checkDevice(getUserId(), deviceId);
         GpxBuilder gpx = new GpxBuilder(Context.getIdentityManager().getById(deviceId).getName());
-        gpx.addPositions(Context.getDataManager().getPositions(
-                deviceId, DateUtil.parseDate(from), DateUtil.parseDate(to)));
+        gpx.addPositions(Context.getDataManager().getPositions(deviceId, from, to));
         return Response.ok(gpx.build()).header(HttpHeaders.CONTENT_DISPOSITION, CONTENT_DISPOSITION_VALUE_GPX).build();
     }
 

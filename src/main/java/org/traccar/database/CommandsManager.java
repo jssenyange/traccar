@@ -41,7 +41,7 @@ public class CommandsManager  extends ExtendedObjectManager<Command> {
 
     private final Map<Long, Queue<Command>> deviceQueues = new ConcurrentHashMap<>();
 
-    private boolean queueing;
+    private final boolean queueing;
 
     public CommandsManager(DataManager dataManager, boolean queueing) {
         super(dataManager, Command.class);
@@ -76,7 +76,12 @@ public class CommandsManager  extends ExtendedObjectManager<Command> {
         } else {
             ActiveDevice activeDevice = Context.getConnectionManager().getActiveDevice(deviceId);
             if (activeDevice != null) {
-                activeDevice.sendCommand(command);
+                if (activeDevice.supportsLiveCommands()) {
+                    activeDevice.sendCommand(command);
+                } else {
+                    getDeviceQueue(deviceId).add(command);
+                    return false;
+                }
             } else if (!queueing) {
                 throw new RuntimeException("Device is not online");
             } else {
@@ -161,21 +166,27 @@ public class CommandsManager  extends ExtendedObjectManager<Command> {
         }
     }
 
-    public void sendQueuedCommands(ActiveDevice activeDevice) {
+    public Collection<Command> readQueuedCommands(long deviceId) {
+        return readQueuedCommands(deviceId, Integer.MAX_VALUE);
+    }
+
+    public Collection<Command> readQueuedCommands(long deviceId, int count) {
         Queue<Command> deviceQueue;
         try {
             readLock();
-            deviceQueue = deviceQueues.get(activeDevice.getDeviceId());
+            deviceQueue = deviceQueues.get(deviceId);
         } finally {
             readUnlock();
         }
+        Collection<Command> result = new ArrayList<>();
         if (deviceQueue != null) {
             Command command = deviceQueue.poll();
-            while (command != null) {
-                activeDevice.sendCommand(command);
+            while (command != null && result.size() < count) {
+                result.add(command);
                 command = deviceQueue.poll();
             }
         }
+        return result;
     }
 
 }
