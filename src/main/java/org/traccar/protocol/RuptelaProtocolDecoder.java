@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2019 Anton Tananaev (anton@traccar.org)
+ * Copyright 2013 - 2021 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,6 +102,12 @@ public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
             case 5:
                 position.set(Position.KEY_IGNITION, readValue(buf, length, false) == 1);
                 break;
+            case 29:
+                position.set(Position.KEY_POWER, readValue(buf, length, false));
+                break;
+            case 30:
+                position.set(Position.KEY_BATTERY, readValue(buf, length, false) * 0.001);
+                break;
             case 74:
                 position.set(Position.PREFIX_TEMP + 3, readValue(buf, length, true) * 0.1);
                 break;
@@ -109,6 +115,19 @@ public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
             case 79:
             case 80:
                 position.set(Position.PREFIX_TEMP + (id - 78), readValue(buf, length, true) * 0.1);
+                break;
+            case 134:
+                if (readValue(buf, length, false) > 0) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_BRAKING);
+                }
+                break;
+            case 136:
+                if (readValue(buf, length, false) > 0) {
+                    position.set(Position.KEY_ALARM, Position.ALARM_ACCELERATION);
+                }
+                break;
+            case 197:
+                position.set(Position.KEY_RPM, readValue(buf, length, false) * 0.125);
                 break;
             default:
                 position.set(Position.PREFIX_IO + id, readValue(buf, length, false));
@@ -171,29 +190,29 @@ public class RuptelaProtocolDecoder extends BaseProtocolDecoder {
                 }
 
                 // Read 1 byte data
-                int cnt = buf.readUnsignedByte();
-                for (int j = 0; j < cnt; j++) {
+                int valueCount = buf.readUnsignedByte();
+                for (int j = 0; j < valueCount; j++) {
                     int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
                     decodeParameter(position, id, buf, 1);
                 }
 
                 // Read 2 byte data
-                cnt = buf.readUnsignedByte();
-                for (int j = 0; j < cnt; j++) {
+                valueCount = buf.readUnsignedByte();
+                for (int j = 0; j < valueCount; j++) {
                     int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
                     decodeParameter(position, id, buf, 2);
                 }
 
                 // Read 4 byte data
-                cnt = buf.readUnsignedByte();
-                for (int j = 0; j < cnt; j++) {
+                valueCount = buf.readUnsignedByte();
+                for (int j = 0; j < valueCount; j++) {
                     int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
                     decodeParameter(position, id, buf, 4);
                 }
 
                 // Read 8 byte data
-                cnt = buf.readUnsignedByte();
-                for (int j = 0; j < cnt; j++) {
+                valueCount = buf.readUnsignedByte();
+                for (int j = 0; j < valueCount; j++) {
                     int id = type == MSG_EXTENDED_RECORDS ? buf.readUnsignedShort() : buf.readUnsignedByte();
                     decodeParameter(position, id, buf, 8);
                 }

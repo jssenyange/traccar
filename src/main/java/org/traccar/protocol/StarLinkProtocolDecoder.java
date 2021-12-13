@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2020 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2021 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import org.traccar.helper.UnitsConverter;
 import org.traccar.model.CellTower;
 import org.traccar.model.Network;
 import org.traccar.model.Position;
-import org.traccar.protobuf.StarLinkMessage;
+import org.traccar.protobuf.starlink.StarLinkMessage;
 
 import java.net.SocketAddress;
 import java.text.DateFormat;
@@ -145,18 +145,25 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
         String[] dataTags = getFormat(deviceSession.getDeviceId());
         DateFormat dateFormat = getDateFormat(deviceSession.getDeviceId());
 
-        /*
-29.0 (#TVI #),
-0 (#OUTC #),
-         */
-
         for (int i = 0; i < Math.min(data.length, dataTags.length); i++) {
             if (data[i].isEmpty()) {
                 continue;
             }
             switch (dataTags[i]) {
+                case "#ALT#":
+                case "#ALTD#":
+                    position.setAltitude(Double.parseDouble(data[i]));
+                    break;
+                case "#DAL#":
+                case "#DID#":
+                    position.set(Position.KEY_DRIVER_UNIQUE_ID, data[i]);
+                    break;
                 case "#EDT#":
                     position.setDeviceTime(dateFormat.parse(data[i]));
+                    break;
+                case "#EDV1#":
+                case "#EDV2#":
+                    position.set("external" + dataTags[i].charAt(4), data[i]);
                     break;
                 case "#EID#":
                     event = Integer.parseInt(data[i]);
@@ -170,6 +177,9 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                     break;
                 case "#EDSC#":
                     position.set("reason", data[i]);
+                    break;
+                case "#IARM#":
+                    position.set(Position.KEY_ARMED, Integer.parseInt(data[i]) > 0);
                     break;
                 case "#PDT#":
                     position.setFixTime(dateFormat.parse(data[i]));
@@ -190,13 +200,23 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                     position.setCourse(Integer.parseInt(data[i]));
                     break;
                 case "#ODO#":
+                case "#ODOD#":
                     position.set(Position.KEY_ODOMETER, (long) (Double.parseDouble(data[i]) * 1000));
                     break;
                 case "#BATC#":
                     position.set(Position.KEY_BATTERY_LEVEL, Integer.parseInt(data[i]));
                     break;
+                case "#BATH#":
+                    position.set("batteryHealth", Integer.parseInt(data[i]));
+                    break;
                 case "#TVI#":
                     position.set(Position.KEY_DEVICE_TEMP, Double.parseDouble(data[i]));
+                    break;
+                case "#CFL#":
+                    position.set(Position.KEY_FUEL_LEVEL, Integer.parseInt(data[i]));
+                    break;
+                case "#CFL2#":
+                    position.set("fuel2", Integer.parseInt(data[i]));
                     break;
                 case "#IN1#":
                 case "#IN2#":
@@ -215,6 +235,9 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                 case "#OUTC#":
                 case "#OUTD#":
                     position.set(Position.PREFIX_OUT + (dataTags[i].charAt(4) - 'A' + 1), Integer.parseInt(data[i]));
+                    break;
+                case "#PDOP#":
+                    position.set(Position.KEY_PDOP, Double.parseDouble(data[i]));
                     break;
                 case "#LAC#":
                     if (!data[i].isEmpty()) {
@@ -240,17 +263,22 @@ public class StarLinkProtocolDecoder extends BaseProtocolDecoder {
                     break;
                 case "#IGN#":
                 case "#IGNL#":
-                    position.set(Position.KEY_IGNITION, data[i].equals("1"));
-                    break;
                 case "#ENG#":
-                    position.set("engine", data[i].equals("1"));
+                    position.set(Position.KEY_IGNITION, Integer.parseInt(data[i]) > 0);
                     break;
                 case "#DUR#":
                 case "#TDUR#":
                     position.set(Position.KEY_HOURS, Integer.parseInt(data[i]));
                     break;
+                case "#SAT#":
+                case "#SATN#":
+                    position.set(Position.KEY_SATELLITES_VISIBLE, Integer.parseInt(data[i]));
+                    break;
                 case "#SATU#":
                     position.set(Position.KEY_SATELLITES, Integer.parseInt(data[i]));
+                    break;
+                case "#STRT#":
+                    position.set("starter", Double.parseDouble(data[i]));
                     break;
                 case "#TS1#":
                     position.set("sensor1State", Integer.parseInt(data[i]));

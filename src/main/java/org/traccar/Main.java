@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,13 +122,7 @@ public final class Main {
     private static void scheduleDatabaseCleanup() {
         new Timer().scheduleAtFixedRate(new TimerTask() {
             @Override
-            public void run() {
-                try {
-                    Context.getDataManager().clearHistory();
-                } catch (SQLException error) {
-                    LOGGER.warn("Clear history error", error);
-                }
-
+            public void run() {                
                 try {
                     Context.getPersistentLoginManager().deleteStalePersistentLogins();
                 } catch (Exception exception) {
