@@ -98,4 +98,7 @@ jar {
                 "Implementation-Version": "4.14",
                 "Class-Path": configurations.runtimeClasspath.files.collect { "lib/$it.name" }.join(" "))
     }
+    from {
+         configurations.runtimeClasspath.filter{ it.exists() }.collect { it.isDirectory() ? it : zipTree(it) }
+    }
 }
