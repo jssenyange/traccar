@@ -17,11 +17,9 @@ package org.traccar.api.resource;
 
 import org.traccar.Context;
 import org.traccar.api.BaseResource;
-import org.traccar.helper.DataConverter;
 import org.traccar.helper.ServletHelper;
 import org.traccar.database.PersistentLoginManager;
 import org.traccar.helper.LogAction;
-import org.traccar.helper.ServletHelper;
 import org.traccar.model.PersistentLogin;
 import org.traccar.model.User;
 
@@ -42,8 +40,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Date;
 

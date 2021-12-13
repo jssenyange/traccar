@@ -18,7 +18,6 @@ package org.traccar.api;
 import java.security.Principal;
 
 public class UserPrincipal implements Principal {
-    
     private final boolean isRememberMeLogin;
     private final long userId;
 

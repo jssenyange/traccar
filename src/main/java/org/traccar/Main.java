@@ -27,7 +27,6 @@ import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.nio.charset.Charset;
-import java.sql.SQLException;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.Locale;
@@ -122,7 +121,7 @@ public final class Main {
     private static void scheduleDatabaseCleanup() {
         new Timer().scheduleAtFixedRate(new TimerTask() {
             @Override
-            public void run() {                
+            public void run() {
                 try {
                     Context.getPersistentLoginManager().deleteStalePersistentLogins();
                 } catch (Exception exception) {
