@@ -90,12 +90,26 @@ task copyDependencies(type: Copy) {
     from configurations.runtimeClasspath
 }
 assemble.dependsOn(copyDependencies)
+def traccarVersion = "4.14"
+def traccarMainClass = "org.traccar.Main"
 
-jar {
+jar {    
     manifest {
         attributes(
-                "Main-Class": "org.traccar.Main",
-                "Implementation-Version": "4.14",
+                "Main-Class": "${traccarMainClass}",
+                "Implementation-Version": "${traccarVersion}",
+                "Class-Path": configurations.runtimeClasspath.files.collect { "lib/$it.name" }.join(" "))
+    }
+}
+
+task jarWithDependencies(type: Jar) {
+    duplicatesStrategy = 'include'
+    archiveBaseName = 'tracker-server-jar-with-dependencies'
+    destinationDirectory  = file("$projectDir/target")
+    manifest {
+        attributes(
+                "Main-Class": "${traccarMainClass}",
+                "Implementation-Version": "${traccarVersion}",
                 "Class-Path": configurations.runtimeClasspath.files.collect { "lib/$it.name" }.join(" "))
     }
     from {
@@ -104,4 +118,5 @@ jar {
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
     exclude 'META-INF/*.DSA'
+    with jar
 }
