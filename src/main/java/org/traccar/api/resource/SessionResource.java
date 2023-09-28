@@ -108,17 +108,6 @@ public class SessionResource extends BaseResource {
         throw new WebApplicationException(Response.status(Response.Status.NOT_FOUND).build());
     }
 
-    @Path("{id}")
-    @GET
-    public User get(@PathParam("id") long userId) throws StorageException {
-        permissionsService.checkUser(getUserId(), userId);
-        User user = storage.getObject(User.class, new Request(
-                new Columns.All(), new Condition.Equals("id", userId)));
-        request.getSession().setAttribute(USER_ID_KEY, user.getId());
-        LogAction.login(user.getId(), WebHelper.retrieveRemoteAddress(request));
-        return user;
-    }
-
     public static Long rememberMeLogin(HttpServletRequest request, HttpServletResponse response,
                                        PersistentLoginManager persistentLoginManager,
                                        PermissionsService permissionsService) throws StorageException {
@@ -172,6 +161,17 @@ public class SessionResource extends BaseResource {
             }
         }
         return null;
+    }
+
+    @Path("{id}")
+    @GET
+    public User get(@PathParam("id") long userId) throws StorageException {
+        permissionsService.checkUser(getUserId(), userId);
+        User user = storage.getObject(User.class, new Request(
+                new Columns.All(), new Condition.Equals("id", userId)));
+        request.getSession().setAttribute(USER_ID_KEY, user.getId());
+        LogAction.login(user.getId(), WebHelper.retrieveRemoteAddress(request));
+        return user;
     }
 
     @PermitAll
