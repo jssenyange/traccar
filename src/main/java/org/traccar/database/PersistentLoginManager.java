@@ -1,30 +1,39 @@
 package org.traccar.database;
 
 
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.traccar.config.Config;
 import org.traccar.helper.DateUtil;
 import org.traccar.helper.Hashing;
 import org.traccar.model.PersistentLogin;
 import org.traccar.model.User;
+import org.traccar.storage.Storage;
+import org.traccar.storage.StorageException;
+import org.traccar.storage.query.Columns;
+import org.traccar.storage.query.Condition;
+import org.traccar.storage.query.Request;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.Calendar;
 
 
+@Singleton
 public class PersistentLoginManager {
 
     private final int maximumPersistentLogins;
     private final int expiryDays;
     private final int staleDays;
-    private final DataManager dataManager;
+    private final Storage storage;
     private String cookieName;
 
-    public PersistentLoginManager(DataManager dataManager, Config config) {
+    @Inject
+    public PersistentLoginManager(Storage storage, Config config) {
         expiryDays = Math.max(1, config.getInteger("persistent.login.expiry.days", 30));
         staleDays = Math.max(1, config.getInteger("persistent.login.stale.days", 7));
         maximumPersistentLogins = Math.max(1, config.getInteger("persistent.login.max", 10));
@@ -32,7 +41,7 @@ public class PersistentLoginManager {
         if (cookieName.trim().length() == 0) {
             cookieName = "tcrm";
         }
-        this.dataManager = dataManager;
+        this.storage = storage;
     }
 
     public int getExpiryDays() {
@@ -69,32 +78,48 @@ public class PersistentLoginManager {
         return cookieValues;
     }
 
-    public void deletePersistentLogin(PersistentLogin persistentLogin) throws SQLException {
-        dataManager.deletePersistentLogin(persistentLogin);
+    public void deletePersistentLogin(PersistentLogin persistentLogin) throws StorageException {
+        storage.removeObject(PersistentLogin.class, new Request(
+                new Condition.Equals("id", persistentLogin.getId())));
     }
 
-    public void deletePersistentLogin(String cookieValue) throws SQLException {
+    public void deletePersistentLogin(String cookieValue) throws StorageException {
         Object[] cookieValues = parseCookieValue(cookieValue);
         if (cookieValues == null) {
             return;
         }
 
-        PersistentLogin persistentLogin = dataManager.getPersistentLogin((long) cookieValues[0]);
+        PersistentLogin persistentLogin = getPersistentLogin((long) cookieValues[0]);
         if (persistentLogin != null && isCookieValid(persistentLogin, (String) cookieValues[1])) {
-            dataManager.deletePersistentLogin(persistentLogin);
+            deletePersistentLogin(persistentLogin);
         }
     }
 
-    public PersistentLogin getPersistentLogin(long id) throws SQLException {
-        return dataManager.getPersistentLogin(id);
+    public PersistentLogin getPersistentLogin(long id) throws StorageException {
+        return storage.getObject(PersistentLogin.class, new Request(
+                new Columns.All(), new Condition.Equals("id", id)));
     }
-    public PersistentLogin createPersistentLogin(User user) throws SQLException {
+
+    public int getUserPersistentLoginCount(long userId)  throws StorageException {
+        var persistentLogins = storage.getObjects(PersistentLogin.class, new Request(
+                new Columns.Include("userId"), new Condition.Equals("userId", userId)));
+        return persistentLogins.size();
+    }
+
+    public List<PersistentLogin> getUserPersistentLogins(long userId)  throws StorageException {
+        var persistentLogins = storage.getObjects(PersistentLogin.class, new Request(
+                new Columns.All(), new Condition.Equals("userId", userId)));
+        return persistentLogins;
+    }
+
+    public PersistentLogin createPersistentLogin(User user) throws StorageException {
         // If we have more than the allowed persistent logins, we delete the last stale one.
-        int persistentLoginCount = dataManager.getUserPersistentLoginCount(user.getId());
+
+        int persistentLoginCount = getUserPersistentLoginCount(user.getId());
         Date today = new Date();
         if (persistentLoginCount >= maximumPersistentLogins) {
             ArrayList<PersistentLogin> userPersistentLogin =
-                    new ArrayList(dataManager.getUserPersistentLogins(user.getId()));
+                    new ArrayList(getUserPersistentLogins(user.getId()));
             Collections.sort(userPersistentLogin, new Comparator<PersistentLogin>() {
                 @Override
                 public int compare(PersistentLogin o1, PersistentLogin o2) {
@@ -107,13 +132,13 @@ public class PersistentLoginManager {
             int loginsToDelete = (persistentLoginCount - maximumPersistentLogins) + 1;
             for (int index = 0; index < userPersistentLogin.size(); index++) {
                 if (index < loginsToDelete) {
-                    dataManager.deletePersistentLogin(userPersistentLogin.get(index));
+                    deletePersistentLogin(userPersistentLogin.get(index));
                 } else {
                     PersistentLogin persistentLogin = userPersistentLogin.get(index);
                     if (persistentLogin.getExpiryDate().after(today)) {
                         break;
                     } else {
-                        dataManager.deletePersistentLogin(persistentLogin);
+                        deletePersistentLogin(persistentLogin);
                     }
                 }
             }
@@ -130,7 +155,7 @@ public class PersistentLoginManager {
         persistentLogin.setCreated(today);
         persistentLogin.setExpiryDate(DateUtil.dateAdd(today, Calendar.DATE, expiryDays));
 
-        dataManager.insertPersistentLogin(persistentLogin);
+        storage.addObject(persistentLogin, new Request(new Columns.Exclude("id")));
 
         return  persistentLogin;
     }
@@ -139,13 +164,26 @@ public class PersistentLoginManager {
         return Hashing.createHash(cookieValue, persistentLogin.getSalt()).getHash().equals(persistentLogin.getSid());
     }
 
-    public void  deleteStalePersistentLogins() throws SQLException {
+    public void  deleteStalePersistentLogins() throws StorageException {
         Date today = new Date();
-        dataManager.deleteStalePersistentLogins(today, DateUtil.dateAdd(today, Calendar.DATE, -1 * getStaleDays()));
+        Date lastUsed = DateUtil.dateAdd(today, Calendar.DATE, -1 * getStaleDays());
+        storage.removeObject(PersistentLogin.class, new Request(
+                    new Condition.Or(
+                        new Condition.Compare("expiryDate", "<=", "expiryDate", today),
+                       new Condition.And(
+                               new Condition.IsNotNull("lastUsed"),
+                               new Condition.Or(
+                                new Condition.Compare("lastUsed", "<=", "lastUsed", lastUsed),
+                                       new Condition.Compare("created", "<=", "lastUsed1", lastUsed))
+                       )
+                     )
+            ));
     }
 
-    public void updatePersistentLogin(PersistentLogin persistentLogin) throws SQLException {
-        dataManager.updatePersistentLogin(persistentLogin);
+    public void updatePersistentLogin(PersistentLogin persistentLogin) throws StorageException {
+        storage.updateObject(persistentLogin, new Request(
+                new Columns.Exclude("id"),
+                new Condition.Equals("id", persistentLogin.getId())));
     }
 
 }

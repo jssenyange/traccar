@@ -17,7 +17,7 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
 
@@ -75,7 +75,7 @@ public class StarcomProtocolDecoder extends BaseProtocolDecoder {
                 case "eventid":
                     position.set(Position.KEY_EVENT, Integer.parseInt(value));
                     break;
-                case "mileage":
+                case "odometer":
                     position.set(Position.KEY_ODOMETER, (long) (Double.parseDouble(value) * 1000));
                     break;
                 case "satellites":
@@ -110,8 +110,8 @@ public class StarcomProtocolDecoder extends BaseProtocolDecoder {
                 case "extra1":
                 case "extra2":
                 case "extra3":
-                    position.set(key, value);
                 default:
+                    position.set(key, value);
                     break;
             }
         }
