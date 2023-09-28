@@ -10,7 +10,7 @@
 
     <preConditions onFail="MARK_RAN">
       <not>
-        <tableExists tableName="tc_users" />
+        <tableExists tableName="persistent_login" />
       </not>
     </preConditions>
 
