@@ -20,7 +20,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.BcdUtil;
@@ -58,6 +58,7 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
     public static final int MSG_DRIVER_BEHAVIOR_1 = 0x05; // 0x2626
     public static final int MSG_DRIVER_BEHAVIOR_2 = 0x06; // 0x2626
     public static final int MSG_BLE = 0x10;
+    public static final int MSG_NETWORK_2 = 0x11;
     public static final int MSG_GPS_2 = 0x13;
     public static final int MSG_ALARM_2 = 0x14;
     public static final int MSG_COMMAND = 0x81;
@@ -167,7 +168,7 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
 
             return decodePosition(channel, deviceSession, buf, type, index, imei);
 
-        } else if (type == MSG_NETWORK && header == 0x2727) {
+        } else if (type == MSG_NETWORK && header == 0x2727 || type == MSG_NETWORK_2) {
 
             Position position = new Position(getProtocolName());
             position.setDeviceId(deviceSession.getDeviceId());
@@ -411,7 +412,7 @@ public class T800xProtocolDecoder extends BaseProtocolDecoder {
 
         if (BitUtil.check(status, 6)) {
 
-            position.setValid(!BitUtil.check(status, 7));
+            position.setValid(true);
             position.setTime(readDate(buf));
             position.setAltitude(buf.readFloatLE());
             position.setLongitude(buf.readFloatLE());

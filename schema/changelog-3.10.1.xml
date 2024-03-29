@@ -41,4 +41,41 @@
 
 
   </changeSet>
+
+  <changeSet author="author" id="changelog-3.10.2">
+
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="tc_users" />
+      <not>
+        <tableExists tableName="persistent_login" />
+      </not>
+    </preConditions>
+
+
+    <createTable tableName="persistent_login">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" />
+      </column>
+      <column name="userId" type="INT">
+        <constraints nullable="false" />
+      </column>
+      <column name="sid" type="VARCHAR(128)">
+        <constraints nullable="false" />
+      </column>
+      <column name="salt" type="VARCHAR(32)">
+        <constraints nullable="false" />
+      </column>
+      <column name="expiryDate" type="TIMESTAMP" >
+        <constraints nullable="false" />
+      </column>
+      <column name="created" type="TIMESTAMP" />
+      <column name="lastUsed" type="TIMESTAMP" />
+
+    </createTable>
+
+
+    <addForeignKeyConstraint baseTableName="persistent_login" baseColumnNames="userId" constraintName="fk_persistent_login_userId" referencedTableName="tc_users" referencedColumnNames="id" onDelete="CASCADE" />
+
+
+  </changeSet>
 </databaseChangeLog>

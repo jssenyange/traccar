@@ -19,7 +19,14 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.traccar.api.HealthCheckService;
+import org.traccar.broadcast.BroadcastService;
+import org.traccar.database.PersistentLoginManager;
+import org.traccar.helper.model.DeviceUtil;
+import org.traccar.schedule.ScheduleManager;
+import org.traccar.storage.DatabaseModule;
+import org.traccar.storage.Storage;
+import org.traccar.web.WebModule;
+import org.traccar.web.WebServer;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
@@ -27,9 +34,12 @@ import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.nio.charset.Charset;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.Locale;
 
 public final class Main {
 
@@ -110,20 +120,12 @@ public final class Main {
         }
     }
 
-    private static void scheduleHealthCheck() {
-        HealthCheckService service = new HealthCheckService();
-        if (service.isEnabled()) {
-            new Timer().scheduleAtFixedRate(
-                    service.createTask(), service.getPeriod(), service.getPeriod());
-        }
-    }
-
     private static void scheduleDatabaseCleanup() {
         new Timer().scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
                 try {
-                    Context.getPersistentLoginManager().deleteStalePersistentLogins();
+                    injector.getInstance(PersistentLoginManager.class).deleteStalePersistentLogins();
                 } catch (Exception exception) {
                     LOGGER.warn("Clear stale persistent logins error", exception);
                 }
@@ -133,31 +135,38 @@ public final class Main {
 
     public static void run(String configFile) {
         try {
-            Context.init(configFile);
-            injector = Guice.createInjector(new MainModule());
+            injector = Guice.createInjector(new MainModule(configFile), new DatabaseModule(), new WebModule());
             logSystemInfo();
             LOGGER.info("Version: " + Main.class.getPackage().getImplementationVersion());
             LOGGER.info("Starting server...");
 
-            Context.getServerManager().start();
-            if (Context.getWebServer() != null) {
-                Context.getWebServer().start();
+            if (injector.getInstance(BroadcastService.class).singleInstance()) {
+                DeviceUtil.resetStatus(injector.getInstance(Storage.class));
             }
-            Context.getScheduleManager().start();
 
-            scheduleHealthCheck();
+            var services = Stream.of(
+                    ServerManager.class, WebServer.class, ScheduleManager.class, BroadcastService.class)
+                    .map(injector::getInstance)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            for (var service : services) {
+                service.start();
+            }
             scheduleDatabaseCleanup();
 
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> LOGGER.error("Thread exception", e));
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                LOGGER.info("Shutting down server...");
+                LOGGER.info("Stopping server...");
 
-                Context.getScheduleManager().stop();
-                if (Context.getWebServer() != null) {
-                    Context.getWebServer().stop();
+                for (var service : services) {
+                    try {
+                        service.stop();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-                Context.getServerManager().stop();
             }));
         } catch (Exception e) {
             LOGGER.error("Main method error", e);

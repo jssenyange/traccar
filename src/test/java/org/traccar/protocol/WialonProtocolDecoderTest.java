@@ -8,20 +8,23 @@ public class WialonProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecode() throws Exception {
 
-        var decoder = new WialonProtocolDecoder(null);
+        var decoder = inject(new WialonProtocolDecoder(null));
 
         verifyNull(decoder, text(
                 "#L#2.0;42001300083;;CE45"));
+
+        verifyAttributes(decoder, text(
+                "#D#NA;NA;5429.681944502211763;N;02654.60403650999069;E;NA;NA;NA;NA;NA;NA;NA;1.0;NA;m1:1:9196679,d1:1:15397,t1:1:20,b1:1:162,fuel1:2:21588.0,pv1:2:35.98,finish:1:1;0x9b0"));
 
         verifyAttributes(decoder, text(
                 "#D#120319;112003;NA;NA;NA;NA;0.000;NA;NA;0;NA;NA;NA;NA;NA;101_521347:1:521246,101_158:1:510,101_521055:1:510,101_521055_2.9:1:509,101_521056:1:3;626B"));
 
         verifyNull(decoder, text(
                 "#L#123456789012345;test"));
-        
+
         verifyNull(decoder, text(
                 "#L#2002;NA"));
-        
+
         verifyNull(decoder, text(
                 "#P#"));
 
@@ -50,10 +53,10 @@ public class WialonProtocolDecoderTest extends ProtocolTest {
 
         verifyPosition(decoder, text(
                 "#D#270413;205601;5544.6025;N;03739.6834;E;1;2;3;4;0.0;0;0;14.77,0.02,3.6;NA;count1:1:564,fuel:2:45.8,hw:3:V4.5"));
-        
+
         verifyPosition(decoder, text(
                 "#D#190114;051312;4459.6956;N;04105.9930;E;35;306;204.000000;12;NA;452986639;NA;106.000000;NA;sats_gps:1:9,sats_glonass:1:3,balance:2:12123.000000,stay_balance:1:0"));
-        
+
         verifyPosition(decoder, text(
                 "#D#021214;065947;2237.7552;N;11404.8851;E;0.000;;170.9;5;1.74;NA;NA;NA;NA;NA"));
 
@@ -61,10 +64,10 @@ public class WialonProtocolDecoderTest extends ProtocolTest {
                 "#D#021214;065947;2237.7552;N;11404.8851;E;0.000;;170.9;5;1.74;NA;NA;;NA;NA"));
 
         verifyPositions(decoder, text(
-                "#B#080914;073235;5027.50625;N;03026.19321;E;0.700;0.000;NA;4;NA;NA;NA;;NA;Батарея:3:100 %|080914;073420;5027.50845;N;03026.18854;E;1.996;292.540;NA;4;NA;NA;NA;;NA;Батарея:3:100 %"));
-        
+                "#B#080914;073235;5027.50625;N;03026.19321;E;0.700;0.000;NA;4;NA;NA;NA;;NA;Батарея:3:100%|080914;073420;5027.50845;N;03026.18854;E;1.996;292.540;NA;4;NA;NA;NA;;NA;Батарея:3:100 %"));
+
         verifyPositions(decoder, text(
-                "#B#110914;102132;5027.50728;N;03026.20369;E;1.979;288.170;NA;NA;NA;NA;NA;;NA;Батарея:3:100 %"));
+                "#B#110914;102132;5027.50728;N;03026.20369;E;1.979;288.170;NA;NA;NA;NA;NA;;NA;Батарея:3:100%"));
 
         verifyPositions(decoder, text(
                 "#B#110315;045857;5364.0167;N;06127.8262;E;0;155;965;7;2.40;4;0;;NA;Uacc:2:3.4,Iacc:2:0.000,Uext:2:13.2,Tcpu:2:14.4,Balance:2:167.65,GPS:3:Off"));
