@@ -20,6 +20,7 @@ import com.google.inject.Injector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.broadcast.BroadcastService;
+import org.traccar.database.PersistentLoginManager;
 import org.traccar.helper.model.DeviceUtil;
 import org.traccar.schedule.ScheduleManager;
 import org.traccar.storage.DatabaseModule;

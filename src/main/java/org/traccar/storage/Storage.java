@@ -60,11 +60,13 @@ public abstract class Storage {
 
     public abstract void deletePersistentLogin(PersistentLogin persistentLogin) throws StorageException, SQLException;
 
-    public abstract void deleteStalePersistentLogins(Date expiryDate, Date staleDate) throws StorageException, SQLException;
+    public abstract void deleteStalePersistentLogins(Date expiryDate, Date staleDate) throws StorageException,
+            SQLException;
 
     public abstract PersistentLogin getPersistentLogin(long id) throws StorageException, SQLException;
 
-    public abstract Collection<PersistentLogin> getUserPersistentLogins(long userId) throws StorageException, SQLException;
+    public abstract Collection<PersistentLogin> getUserPersistentLogins(long userId) throws StorageException,
+            SQLException;
 
     public abstract int getUserPersistentLoginCount(long userId) throws StorageException, SQLException;
 

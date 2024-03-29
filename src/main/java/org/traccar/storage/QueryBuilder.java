@@ -35,7 +35,13 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Collection;
+import java.util.Map;
 
 @SuppressWarnings("UnusedReturnValue")
 public final class QueryBuilder {

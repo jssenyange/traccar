@@ -17,7 +17,12 @@ package org.traccar.storage;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.traccar.config.Config;
-import org.traccar.model.*;
+import org.traccar.model.BaseModel;
+import org.traccar.model.Device;
+import org.traccar.model.PersistentLogin;
+import org.traccar.model.Group;
+import org.traccar.model.GroupedModel;
+import org.traccar.model.Permission;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Order;
@@ -26,7 +31,12 @@ import org.traccar.storage.query.Request;
 import jakarta.inject.Inject;
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Date;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -408,57 +418,59 @@ public class DatabaseStorage extends Storage {
         return result.toString();
     }
 
-    public void insertPersistentLogin(PersistentLogin persistentLogin) throws StorageException, SQLException {
-        persistentLogin.setId(QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.insertPersistentLogin"), true)
-                .setObject(persistentLogin, Columns.getAllColumns(persistentLogin.getClass(),"get"))
+    public void insertPersistentLogin(PersistentLogin persistentLogin) throws SQLException {
+        persistentLogin.setId(QueryBuilder.create(config, dataSource, objectMapper,
+                        getQuery("database.insertPersistentLogin"), true)
+                .setObject(persistentLogin, Columns.getAllColumns(persistentLogin.getClass(), "get"))
                 .executeUpdate());
     }
 
-    public void updatePersistentLogin(PersistentLogin persistentLogin) throws StorageException, SQLException {
+    public void updatePersistentLogin(PersistentLogin persistentLogin) throws SQLException {
         QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.updatePersistentLogin"))
-                .setObject(persistentLogin, Columns.getAllColumns(persistentLogin.getClass(),"get"))
+                .setObject(persistentLogin, Columns.getAllColumns(persistentLogin.getClass(), "get"))
                 .executeUpdate();
     }
 
-    public void deletePersistentLogin(PersistentLogin persistentLogin) throws StorageException, SQLException {
+    public void deletePersistentLogin(PersistentLogin persistentLogin) throws SQLException {
         QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.deletePersistentLogin"))
                 .setLong("id", persistentLogin.getId())
                 .executeUpdate();
     }
 
-    public void deleteStalePersistentLogins(Date expiryDate, Date staleDate) throws StorageException, SQLException {
+    public void deleteStalePersistentLogins(Date expiryDate, Date staleDate) throws SQLException {
         QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.deleteStalePersistentLogins"))
                 .setDate("expiryDate", expiryDate)
                 .setDate("lastUsed", staleDate)
                 .executeUpdate();
     }
 
-    public PersistentLogin getPersistentLogin(long id) throws StorageException, SQLException {
+    public PersistentLogin getPersistentLogin(long id) throws SQLException {
         return QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.getPersistentLogin"))
                 .setLong("id", id)
                 .executeQuerySingle(PersistentLogin.class);
     }
 
-    public Collection<PersistentLogin> getUserPersistentLogins(long userId) throws StorageException, SQLException {
+    public Collection<PersistentLogin> getUserPersistentLogins(long userId) throws SQLException {
         return QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.getUserPersistentLogins"))
                 .setLong("userId", userId)
                 .executeQuery(PersistentLogin.class);
     }
 
-    public int getUserPersistentLoginCount(long userId) throws StorageException, SQLException {
-        PersistentLogin count =  QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.getUserPersistentLoginCount"))
+    public int getUserPersistentLoginCount(long userId) throws SQLException {
+        PersistentLogin count =  QueryBuilder.create(config, dataSource, objectMapper,
+                        getQuery("database.getUserPersistentLoginCount"))
                 .setLong("userId", userId)
                 .executeQuerySingle(PersistentLogin.class);
         return count == null ? 0 : (int) count.getId();
     }
 
-    public void deleteUserPersistentLogins(long userId) throws StorageException, SQLException {
+    public void deleteUserPersistentLogins(long userId) throws SQLException {
         QueryBuilder.create(config, dataSource, objectMapper, getQuery("database.deleteUserPersistentLogins"))
                 .setLong("userId", userId)
                 .executeUpdate();
     }
 
-    private String getQuery(String key){
+    private String getQuery(String key) {
         return config.getString(key);
     }
 

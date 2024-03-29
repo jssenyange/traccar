@@ -5,43 +5,6 @@
   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
   logicalFilePath="changelog-3.10">
-
-  <changeSet author="author" id="changelog-3.10.1">
-
-    <preConditions onFail="MARK_RAN">
-      <not>
-        <tableExists tableName="persistent_login" />
-      </not>
-    </preConditions>
-
-
-    <createTable tableName="persistent_login">
-      <column name="id" type="BIGINT" autoIncrement="true">
-        <constraints primaryKey="true" />
-      </column>
-      <column name="userId" type="INT">
-        <constraints nullable="false" />
-      </column>
-      <column name="sid" type="VARCHAR(128)">
-        <constraints nullable="false" />
-      </column>
-      <column name="salt" type="VARCHAR(32)">
-        <constraints nullable="false" />
-      </column>
-      <column name="expiryDate" type="TIMESTAMP" >
-        <constraints nullable="false" />
-      </column>
-      <column name="created" type="TIMESTAMP" />
-      <column name="lastUsed" type="TIMESTAMP" />
-
-    </createTable>
-
-
-    <addForeignKeyConstraint baseTableName="persistent_login" baseColumnNames="userId" constraintName="fk_persistent_login_userId" referencedTableName="users" referencedColumnNames="id" onDelete="CASCADE" />
-
-
-  </changeSet>
-
   <changeSet author="author" id="changelog-3.10.2">
 
     <preConditions onFail="MARK_RAN">
@@ -50,7 +13,6 @@
         <tableExists tableName="persistent_login" />
       </not>
     </preConditions>
-
 
     <createTable tableName="persistent_login">
       <column name="id" type="BIGINT" autoIncrement="true">

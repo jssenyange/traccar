@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2022 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,14 @@
  */
 package org.traccar.api.resource;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.core.Context;
 import org.traccar.api.BaseObjectResource;
 import org.traccar.config.Config;
-import org.traccar.config.Keys;
 import org.traccar.helper.LogAction;
+import org.traccar.helper.model.UserUtil;
 import org.traccar.model.ManagedUser;
 import org.traccar.model.Permission;
 import org.traccar.model.User;
@@ -27,30 +31,32 @@ import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
-import javax.annotation.security.PermitAll;
-import javax.inject.Inject;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
+import jakarta.annotation.security.PermitAll;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.util.Collection;
-import java.util.Date;
 
 @Path("users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class UserResource extends BaseObjectResource<User> {
 
+    @Inject
+    private Config config;
+
+    @Context
+    private HttpServletRequest request;
+
     public UserResource() {
         super(User.class);
     }
-
-    @Inject
-    private Config config;
 
     @GET
     public Collection<User> get(@QueryParam("userId") long userId) throws StorageException {
@@ -90,17 +96,12 @@ public class UserResource extends BaseObjectResource<User> {
                 if (!permissionsService.getServer().getRegistration()) {
                     throw new SecurityException("Registration disabled");
                 }
-                entity.setDeviceLimit(config.getInteger(Keys.USERS_DEFAULT_DEVICE_LIMIT));
-                int expirationDays = config.getInteger(Keys.USERS_DEFAULT_EXPIRATION_DAYS);
-                if (expirationDays > 0) {
-                    entity.setExpirationTime(new Date(System.currentTimeMillis() + expirationDays * 86400000L));
-                }
+                UserUtil.setUserDefaults(entity, config);
             }
         }
 
-        // Do not allow adding users when in readonly mode
-        if (permissionsService.isManager(getUserId())) {
-            checkRememberMeLogin();
+        if (UserUtil.isEmpty(storage)) {
+            entity.setAdministrator(true);
         }
 
         entity.setId(storage.addObject(entity, new Request(new Columns.Exclude("id"))));
@@ -115,6 +116,16 @@ public class UserResource extends BaseObjectResource<User> {
             LogAction.link(getUserId(), User.class, getUserId(), ManagedUser.class, entity.getId());
         }
         return Response.ok(entity).build();
+    }
+
+    @Path("{id}")
+    @DELETE
+    public Response remove(@PathParam("id") long id) throws StorageException {
+        Response response = super.remove(id);
+        if (getUserId() == id) {
+            request.getSession().removeAttribute(SessionResource.USER_ID_KEY);
+        }
+        return response;
     }
 
 }

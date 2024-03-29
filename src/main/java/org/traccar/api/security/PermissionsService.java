@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Anton Tananaev (anton@traccar.org)
+ * Copyright 2022 - 2023 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,8 @@ import org.traccar.model.Device;
 import org.traccar.model.Group;
 import org.traccar.model.GroupedModel;
 import org.traccar.model.ManagedUser;
-import org.traccar.model.ScheduledModel;
+import org.traccar.model.Notification;
+import org.traccar.model.Schedulable;
 import org.traccar.model.Server;
 import org.traccar.model.User;
 import org.traccar.model.UserRestrictions;
@@ -33,7 +34,7 @@ import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 import java.util.Objects;
 
 @RequestScoped
@@ -85,8 +86,10 @@ public class PermissionsService {
         }
     }
 
-    public boolean isManager(long userId) throws StorageException, SecurityException {
-        return !getUser(userId).getAdministrator() && getUser(userId).getUserLimit() == 0;
+    public void checkUserEnabled(long userId) throws StorageException, SecurityException {
+        if (getUser(userId).getDisabled()) {
+            throw new SecurityException("User disabled");
+        }
     }
 
     public interface CheckRestrictionCallback {
@@ -133,23 +136,36 @@ public class PermissionsService {
                     GroupedModel before = null;
                     if (!addition) {
                         before = storage.getObject(after.getClass(), new Request(
-                                new Columns.Include("groupId"), new Condition.Equals("id", object.getId())));
+                                new Columns.Include("groupId"), new Condition.Equals("id", after.getId())));
                     }
                     if (before == null || before.getGroupId() != after.getGroupId()) {
                         checkPermission(Group.class, userId, after.getGroupId());
                     }
                 }
             }
-            if (object instanceof ScheduledModel) {
-                ScheduledModel after = ((ScheduledModel) object);
+            if (object instanceof Schedulable) {
+                Schedulable after = ((Schedulable) object);
                 if (after.getCalendarId() > 0) {
-                    ScheduledModel before = null;
+                    Schedulable before = null;
                     if (!addition) {
                         before = storage.getObject(after.getClass(), new Request(
                                 new Columns.Include("calendarId"), new Condition.Equals("id", object.getId())));
                     }
                     if (before == null || before.getCalendarId() != after.getCalendarId()) {
                         checkPermission(Calendar.class, userId, after.getCalendarId());
+                    }
+                }
+            }
+            if (object instanceof Notification) {
+                Notification after = ((Notification) object);
+                if (after.getCommandId() > 0) {
+                    Notification before = null;
+                    if (!addition) {
+                        before = storage.getObject(after.getClass(), new Request(
+                                new Columns.Include("commandId"), new Condition.Equals("id", object.getId())));
+                    }
+                    if (before == null || before.getCommandId() != after.getCommandId()) {
+                        checkPermission(Command.class, userId, after.getCommandId());
                     }
                 }
             }
@@ -171,7 +187,7 @@ public class PermissionsService {
                 || before.getUserLimit() != after.getUserLimit()) {
             checkAdmin(userId);
         }
-        User user = getUser(userId);
+        User user = userId > 0 ? getUser(userId) : null;
         if (user != null && user.getExpirationTime() != null
                 && !Objects.equals(before.getExpirationTime(), after.getExpirationTime())
                 && (after.getExpirationTime() == null
