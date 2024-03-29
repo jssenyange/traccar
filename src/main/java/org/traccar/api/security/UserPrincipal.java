@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2023 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,25 @@
 package org.traccar.api.security;
 
 import java.security.Principal;
+import java.util.Date;
 
 public class UserPrincipal implements Principal {
     private final boolean isRememberMeLogin;
     private final long userId;
+    private final Date expiration;
 
-    public UserPrincipal(long userId, boolean isRememberMeLogin) {
+    public UserPrincipal(long userId, boolean isRememberMeLogin, Date expiration) {
         this.userId = userId;
         this.isRememberMeLogin = isRememberMeLogin;
+        this.expiration = expiration;
     }
 
     public Long getUserId() {
         return userId;
+    }
+
+    public Date getExpiration() {
+        return expiration;
     }
 
     @Override

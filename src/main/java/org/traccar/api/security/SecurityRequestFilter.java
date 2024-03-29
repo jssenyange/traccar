@@ -88,16 +88,18 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
             if (authHeader != null) {
 
                 try {
-                    User user;
+                    LoginResult loginResult;
                     if (authHeader.startsWith("Bearer ")) {
-                        user = loginService.login(authHeader.substring(7));
+                        loginResult = loginService.login(authHeader.substring(7));
                     } else {
                         String[] auth = decodeBasicAuth(authHeader);
-                        user = loginService.login(auth[0], auth[1]);
+                        loginResult = loginService.login(auth[0], auth[1], null);
                     }
-                    if (user != null) {
+                    if (loginResult != null) {
+                        User user = loginResult.getUser();
                         statisticsManager.registerRequest(user.getId());
-                        securityContext = new UserSecurityContext(new UserPrincipal(user.getId(), false));
+                        securityContext = new UserSecurityContext(
+                                new UserPrincipal(user.getId(), false, loginResult.getExpiration()));
                     }
                 } catch (StorageException | GeneralSecurityException | IOException e) {
                     throw new WebApplicationException(e);
@@ -121,7 +123,8 @@ public class SecurityRequestFilter implements ContainerRequestFilter {
                     if (user != null) {
                         user.checkDisabled();
                         statisticsManager.registerRequest(userId);
-                        securityContext = new UserSecurityContext(new UserPrincipal(userId, isRememberMeLogin));
+                        securityContext = new UserSecurityContext(new UserPrincipal(userId, isRememberMeLogin,
+                                null));
                     }
                 }
 
