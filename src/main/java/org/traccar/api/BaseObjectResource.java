@@ -16,6 +16,7 @@
  */
 package org.traccar.api;
 
+import org.traccar.api.security.ServiceAccountUser;
 import org.traccar.helper.LogAction;
 import org.traccar.model.BaseModel;
 import org.traccar.model.Group;
@@ -28,14 +29,14 @@ import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
-import javax.inject.Inject;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.core.Response;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.core.Response;
 
 public abstract class BaseObjectResource<T extends BaseModel> extends BaseResource {
 
@@ -71,10 +72,13 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
 
         entity.setId(storage.addObject(entity, new Request(new Columns.Exclude("id"))));
         LogAction.create(getUserId(), entity);
-        storage.addPermission(new Permission(User.class, getUserId(), baseClass, entity.getId()));
-        cacheManager.invalidatePermission(true, User.class, getUserId(), baseClass, entity.getId());
-        connectionManager.invalidatePermission(true, User.class, getUserId(), baseClass, entity.getId());
-        LogAction.link(getUserId(), User.class, getUserId(), baseClass, entity.getId());
+
+        if (getUserId() != ServiceAccountUser.ID) {
+            storage.addPermission(new Permission(User.class, getUserId(), baseClass, entity.getId()));
+            cacheManager.invalidatePermission(true, User.class, getUserId(), baseClass, entity.getId());
+            connectionManager.invalidatePermission(true, User.class, getUserId(), baseClass, entity.getId());
+            LogAction.link(getUserId(), User.class, getUserId(), baseClass, entity.getId());
+        }
 
         return Response.ok(entity).build();
     }

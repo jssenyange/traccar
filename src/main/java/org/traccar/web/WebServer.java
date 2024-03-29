@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2022 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2023 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,19 +52,16 @@ import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.ObjectMapperContextResolver;
 
-import javax.servlet.DispatcherType;
-import javax.servlet.ServletException;
-import javax.servlet.SessionCookieConfig;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.SessionCookieConfig;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.EnumSet;
 
 public class WebServer implements LifecycleObject {
@@ -103,14 +100,8 @@ public class WebServer implements LifecycleObject {
             @Override
             protected void handleErrorPage(
                     HttpServletRequest request, Writer writer, int code, String message) throws IOException {
-                Path index = Paths.get(config.getString(Keys.WEB_PATH), "index.html");
-                if (code == HttpStatus.NOT_FOUND_404
-                        && !request.getPathInfo().startsWith("/api/") && Files.exists(index)) {
-                    writer.write(Files.readString(index));
-                } else {
-                    writer.write("<!DOCTYPE><html><head><title>Error</title></head><html><body>"
-                            + code + " - " + HttpStatus.getMessage(code) + "</body></html>");
-                }
+                writer.write("<!DOCTYPE><html><head><title>Error</title></head><html><body>"
+                        + code + " - " + HttpStatus.getMessage(code) + "</body></html>");
             }
         });
 
@@ -150,7 +141,7 @@ public class WebServer implements LifecycleObject {
     }
 
     private void initWebApp(ServletContextHandler servletHandler) {
-        ServletHolder servletHolder = new ServletHolder(DefaultServlet.class);
+        ServletHolder servletHolder = new ServletHolder(new ModernDefaultServlet(config));
         servletHolder.setInitParameter("resourceBase", new File(config.getString(Keys.WEB_PATH)).getAbsolutePath());
         servletHolder.setInitParameter("dirAllowed", "false");
         if (config.getBoolean(Keys.WEB_DEBUG)) {
@@ -202,14 +193,16 @@ public class WebServer implements LifecycleObject {
             sessionHandler.setSessionCache(sessionCache);
         }
 
+        SessionCookieConfig sessionCookieConfig = servletHandler.getServletContext().getSessionCookieConfig();
+
         int sessionTimeout = config.getInteger(Keys.WEB_SESSION_TIMEOUT);
         if (sessionTimeout > 0) {
             servletHandler.getSessionHandler().setMaxInactiveInterval(sessionTimeout);
+            sessionCookieConfig.setMaxAge(sessionTimeout);
         }
 
         String sameSiteCookie = config.getString(Keys.WEB_SAME_SITE_COOKIE);
         if (sameSiteCookie != null) {
-            SessionCookieConfig sessionCookieConfig = servletHandler.getServletContext().getSessionCookieConfig();
             switch (sameSiteCookie.toLowerCase()) {
                 case "lax":
                     sessionCookieConfig.setComment(HttpCookie.SAME_SITE_LAX_COMMENT);

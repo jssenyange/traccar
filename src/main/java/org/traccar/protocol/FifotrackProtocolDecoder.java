@@ -64,7 +64,7 @@ public class FifotrackProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+),")                     // course
             .number("(-?d+),")                   // altitude
             .number("(d+),")                     // odometer
-            .number("d+,")                       // runtime
+            .number("(d+),")                     // engine hours
             .number("(x+),")                     // status
             .number("(x+)?,")                    // input
             .number("(x+)?,")                    // output
@@ -235,12 +235,14 @@ public class FifotrackProtocolDecoder extends BaseProtocolDecoder {
 
             position.setValid(parser.next().equals("A"));
             position.setFixTime(position.getDeviceTime());
-            position.set(Position.KEY_SATELLITES, parser.nextInt());
             position.setSpeed(UnitsConverter.knotsFromKph(parser.nextInt()));
+            position.set(Position.KEY_SATELLITES, parser.nextInt());
             position.setLatitude(parser.nextDouble());
             position.setLongitude(parser.nextDouble());
 
         } else {
+
+            getLastLocation(position, position.getDeviceTime());
 
             String[] points = parser.next().split("\\|");
             for (String point : points) {
@@ -290,6 +292,7 @@ public class FifotrackProtocolDecoder extends BaseProtocolDecoder {
         position.setAltitude(parser.nextInt());
 
         position.set(Position.KEY_ODOMETER, parser.nextLong());
+        position.set(Position.KEY_HOURS, parser.nextLong() * 1000);
 
         long status = parser.nextHexLong();
         position.set(Position.KEY_RSSI, BitUtil.between(status, 3, 8));
@@ -308,11 +311,11 @@ public class FifotrackProtocolDecoder extends BaseProtocolDecoder {
         }
 
         if (parser.hasNext()) {
-            String rfid = parser.next();
-            if (rfid.matches("\\p{XDigit}+")) {
-                position.set(Position.KEY_DRIVER_UNIQUE_ID, String.valueOf(Integer.parseInt(rfid, 16)));
+            String value = parser.next();
+            if (value.matches("\\p{XDigit}+")) {
+                position.set(Position.KEY_DRIVER_UNIQUE_ID, String.valueOf(Integer.parseInt(value, 16)));
             } else {
-                position.set("driverLicense", rfid);
+                position.set(Position.KEY_CARD, value);
             }
         }
 

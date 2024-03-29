@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.database.StatisticsManager;
+import org.traccar.handler.AcknowledgementHandler;
 import org.traccar.helper.DateUtil;
 import org.traccar.helper.NetworkUtil;
 import org.traccar.helper.model.PositionUtil;
@@ -40,8 +41,8 @@ import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -145,6 +146,8 @@ public class MainEventHandler extends ChannelInboundHandlerAdapter {
             LOGGER.info(builder.toString());
 
             statisticsManager.registerMessageStored(position.getDeviceId(), position.getProtocol());
+
+            ctx.writeAndFlush(new AcknowledgementHandler.EventHandled(position));
         }
     }
 

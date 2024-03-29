@@ -208,4 +208,28 @@ public interface Condition {
         }
     }
 
+    class IsNull implements Condition {
+        private final String column;
+
+        public IsNull(String column) {
+            this.column = column;
+        }
+
+        public String getColumn() {
+            return column;
+        }
+    }
+
+    class IsNotNull implements Condition {
+        private final String column;
+
+        public IsNotNull(String column) {
+            this.column = column;
+        }
+
+        public String getColumn() {
+            return column;
+        }
+    }
+
 }

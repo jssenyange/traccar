@@ -1,9 +1,11 @@
 package org.traccar.model;
 
+import org.traccar.storage.StorageName;
+
 import java.util.Date;
 
-public class PersistentLogin {
-    private long id;
+@StorageName("persistent_login")
+public class PersistentLogin extends BaseModel {
     private long userId;
     private String sid;
     private String sidToken;
@@ -38,14 +40,6 @@ public class PersistentLogin {
 
     public void setLastUsed(Date lastUsed) {
         this.lastUsed = lastUsed;
-    }
-
-    public long getId() {
-        return id;
-    }
-
-    public void setId(long id) {
-        this.id = id;
     }
 
     public long getUserId() {

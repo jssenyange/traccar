@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 - 2022 Anton Tananaev (anton@traccar.org)
+ * Copyright 2019 - 2023 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,8 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
     public static final int MSG_DATA = 0x01;
     public static final int MSG_CONFIGURATION = 0x02;
     public static final int MSG_SERVICES = 0x03;
+    public static final int MSG_SYSTEM_CONTROL = 0x04;
+    public static final int MSG_FIRMWARE = 0x7E;
     public static final int MSG_RESPONSE = 0x7F;
 
     private String decodeAlarm(long code) {
@@ -146,14 +148,13 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
         int type = buf.readUnsignedByte();
 
         if (BitUtil.check(flags, 4)) {
-            sendResponse(channel, remoteAddress, index, type, buf);
+            sendResponse(channel, remoteAddress, index, type, buf.slice());
         }
 
-        if (type == MSG_DATA) {
+        if (type == MSG_DATA || type == MSG_SERVICES) {
 
             List<Position> positions = new LinkedList<>();
             Set<Integer> keys = new HashSet<>();
-            boolean hasLocation = false;
             Position position = new Position(getProtocolName());
 
             DeviceSession deviceSession = null;
@@ -163,12 +164,8 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                 int key = buf.readUnsignedByte();
 
                 if (keys.contains(key)) {
-                    if (!hasLocation) {
-                        getLastLocation(position, null);
-                    }
                     positions.add(position);
                     keys.clear();
-                    hasLocation = false;
                     position = new Position(getProtocolName());
                 }
                 keys.add(key);
@@ -177,8 +174,9 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                     case 0x01:
                         deviceSession = getDeviceSession(
                                 channel, remoteAddress, buf.readCharSequence(15, StandardCharsets.US_ASCII).toString());
-
-                        position.setDeviceId(deviceSession.getDeviceId());
+                        if (deviceSession == null) {
+                            return null;
+                        }
                         break;
                     case 0x02:
                         long alarm = buf.readUnsignedIntLE();
@@ -192,7 +190,6 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                         position.set(Position.KEY_BATTERY, buf.readUnsignedShortLE() * 0.001);
                         break;
                     case 0x20:
-                        hasLocation = true;
                         position.setLatitude(buf.readIntLE() * 0.0000001);
                         position.setLongitude(buf.readIntLE() * 0.0000001);
                         position.setSpeed(UnitsConverter.knotsFromKph(buf.readUnsignedShortLE()));
@@ -232,11 +229,18 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                         position.setLatitude(buf.readIntLE() * 0.0000001);
                         position.setLongitude(buf.readIntLE() * 0.0000001);
                         position.setValid(true);
-                        hasLocation = true;
                         break;
                     case 0x24:
                         position.setTime(new Date(buf.readUnsignedIntLE() * 1000));
                         long status = buf.readUnsignedIntLE();
+                        if (BitUtil.check(status, 4)) {
+                            position.set(Position.KEY_CHARGE, true);
+                        }
+                        if (BitUtil.check(status, 7)) {
+                            position.set(Position.KEY_ARCHIVE, true);
+                        }
+                        position.set(Position.KEY_MOTION, BitUtil.check(status, 9));
+                        position.set(Position.KEY_RSSI, BitUtil.between(status, 19, 24));
                         position.set(Position.KEY_BATTERY_LEVEL, BitUtil.from(status, 24));
                         position.set(Position.KEY_STATUS, status);
                         break;
@@ -249,7 +253,6 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                             position.setLatitude(buf.readIntLE() * 0.0000001);
                             position.setLongitude(buf.readIntLE() * 0.0000001);
                             position.setValid(true);
-                            hasLocation = true;
                         }
                         if (BitUtil.check(beaconFlags, 6)) {
                             position.set("description", buf.readCharSequence(
@@ -263,7 +266,6 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                         position.setLatitude(buf.readIntLE() * 0.0000001);
                         position.setLongitude(buf.readIntLE() * 0.0000001);
                         position.setValid(true);
-                        hasLocation = true;
                         break;
                     case 0x30:
                         buf.readUnsignedIntLE(); // timestamp
@@ -276,6 +278,14 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                             position.set("activity" + i, buf.readUnsignedIntLE());
                             i += 1;
                         }
+                        break;
+                    case 0x37:
+                        buf.readUnsignedIntLE(); // timestamp
+                        long barking = buf.readUnsignedIntLE();
+                        if (BitUtil.check(barking, 31)) {
+                            position.set("barkStop", true);
+                        }
+                        position.set("barkCount", BitUtil.to(barking, 31));
                         break;
                     case 0x40:
                         buf.readUnsignedIntLE(); // timestamp
@@ -290,20 +300,37 @@ public class Minifinder2ProtocolDecoder extends BaseProtocolDecoder {
                 buf.readerIndex(endIndex);
             }
 
-            if (!hasLocation) {
-                getLastLocation(position, null);
-            }
             positions.add(position);
 
             if (deviceSession != null) {
                 for (Position p : positions) {
                     p.setDeviceId(deviceSession.getDeviceId());
+                    if (!p.getValid() && !p.hasAttribute(Position.KEY_HDOP)) {
+                        getLastLocation(p, null);
+                    }
                 }
             } else {
                 return null;
             }
 
             return positions;
+
+        } else if (type == MSG_RESPONSE) {
+
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+            if (deviceSession == null) {
+                return null;
+            }
+
+            Position position = new Position(getProtocolName());
+            position.setDeviceId(deviceSession.getDeviceId());
+
+            getLastLocation(position, null);
+
+            buf.readUnsignedByte(); // length
+            position.set(Position.KEY_RESULT, String.valueOf(buf.readUnsignedByte()));
+
+            return position;
 
         }
 

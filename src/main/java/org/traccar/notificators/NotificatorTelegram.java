@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 - 2022 Anton Tananaev (anton@traccar.org)
+ * Copyright 2019 - 2023 Anton Tananaev (anton@traccar.org)
  * Copyright 2021 Rafael Miquelino (rafaelmiquelino@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,14 +20,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.model.Event;
+import org.traccar.model.Notification;
 import org.traccar.model.Position;
 import org.traccar.model.User;
 import org.traccar.notification.NotificationFormatter;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.Entity;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.Entity;
 
 @Singleton
 public class NotificatorTelegram implements Notificator {
@@ -85,7 +86,7 @@ public class NotificatorTelegram implements Notificator {
     }
 
     @Override
-    public void send(User user, Event event, Position position) {
+    public void send(Notification notification, User user, Event event, Position position) {
         var shortMessage = notificationFormatter.formatMessage(user, event, position, "short");
 
         TextMessage message = new TextMessage();

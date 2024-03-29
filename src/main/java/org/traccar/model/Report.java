@@ -1,6 +1,5 @@
 /*
- * Copyright 2018 Anton Tananaev (anton@traccar.org)
- * Copyright 2018 Andrey Kunitsyn (andrey@traccar.org)
+ * Copyright 2022 - 2023 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +15,41 @@
  */
 package org.traccar.model;
 
-public class ScheduledModel extends ExtendedModel {
+import org.traccar.storage.StorageName;
+
+@StorageName("tc_reports")
+public class Report extends ExtendedModel implements Schedulable {
 
     private long calendarId;
 
+    @Override
     public long getCalendarId() {
         return calendarId;
     }
 
+    @Override
     public void setCalendarId(long calendarId) {
         this.calendarId = calendarId;
     }
+
+    private String type;
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    private String description;
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
 }

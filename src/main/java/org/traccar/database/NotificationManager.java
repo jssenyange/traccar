@@ -38,9 +38,9 @@ import org.traccar.storage.StorageException;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Request;
 
-import javax.annotation.Nullable;
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.annotation.Nullable;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -107,8 +107,8 @@ public class NotificationManager {
                 cacheManager.getNotificationUsers(notification.getId(), event.getDeviceId()).forEach(user -> {
                     for (String notificator : notification.getNotificatorsTypes()) {
                         try {
-                            notificatorManager.getNotificator(notificator).send(user, event, position);
-                        } catch (MessageException | InterruptedException exception) {
+                            notificatorManager.getNotificator(notificator).send(notification, user, event, position);
+                        } catch (MessageException exception) {
                             LOGGER.warn("Notification failed", exception);
                         }
                     }

@@ -42,7 +42,6 @@ public class BaseResource {
         return 0;
     }
 
-
     protected final boolean isRememberMeLogin() {
         UserPrincipal principal = (UserPrincipal) securityContext.getUserPrincipal();
         if (principal != null) {

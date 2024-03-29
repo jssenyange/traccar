@@ -13,6 +13,8 @@
     <entry key='web.port'>8082</entry>
     <entry key='web.path'>./modern</entry>
     <entry key='web.sanitize'>false</entry>
+    <entry key='web.path'>./modern</entry>
+    <entry key='web.sanitize'>false</entry>
     <entry key='web.persistSession'>false</entry>
 
     <entry key='geocoder.enable'>true</entry>
@@ -32,7 +34,7 @@
 
     <entry key='media.path'>./media</entry>
 
-    <entry key='notificator.types'>web,mail</entry>
+    <entry key='notificator.types'>web,mail,command</entry>
 
     <entry key='server.statistics'>https://www.traccar.org/analytics/</entry>
 
@@ -40,53 +42,6 @@
 
     <entry key='database.ignoreUnknown'>true</entry>
     <entry key='database.changelog'>./schema/changelog-master.xml</entry>
-
-
-    <entry key='database.getPersistentLogin'>
-        SELECT id, userId, sid, expiryDate, created, lastUsed, salt
-        FROM persistent_login
-        WHERE id = :id
-    </entry>
-
-    <entry key='database.getUserPersistentLoginCount'>
-        SELECT count(*) userId
-        FROM persistent_login
-        WHERE userId = :userId
-    </entry>
-
-    <entry key='database.getUserPersistentLogins'>
-        SELECT id, userId, sid, expiryDate, created, lastUsed, salt
-        FROM persistent_login
-        WHERE userId = :userId
-    </entry>
-
-    <entry key='database.insertPersistentLogin'>
-        INSERT INTO persistent_login (userId, sid, expiryDate, created, lastUsed, salt)
-        VALUES (:userId, :sid, :expiryDate, :created, :lastUsed, :salt)
-    </entry>
-
-    <entry key='database.updatePersistentLogin'>
-        UPDATE persistent_login SET
-        userId = :userId,
-        sid = :sid,
-        expiryDate = :expiryDate,
-        created = :created,
-        lastUsed = :lastUsed
-        WHERE id = :id
-    </entry>
-
-    <entry key='database.deletePersistentLogin'>
-        DELETE FROM persistent_login WHERE id = :id
-    </entry>
-
-    <entry key='database.deleteStalePersistentLogins'>
-        DELETE FROM persistent_login WHERE (expiryDate &lt;= :expiryDate) OR (lastUsed is not null and lastUsed &lt;= :lastUsed) or (lastUsed is null and created &lt;= :lastUsed)
-    </entry>
-
-    <entry key='database.deleteUserPersistentLogins'>
-        DELETE FROM persistent_login WHERE userId = :userId
-    </entry>
-    <!-- PROTOCOL CONFIG -->
 
     <entry key='gps103.port'>5001</entry>
     <entry key='tk103.port'>5002</entry>
@@ -334,5 +289,11 @@
     <entry key='ndtpv6.port'>5243</entry>
     <entry key='g1rus.port'>5244</entry>
     <entry key='rftrack.port'>5245</entry>
+    <entry key='vlt.port'>5246</entry>
+    <entry key='transync.port'>5247</entry>
+    <entry key='t622iridium.port'>5248</entry>
+    <entry key='pui.port'>5249</entry>
+    <entry key='nto.port'>5250</entry>
+    <entry key='ramac.port'>5251</entry>
 
 </properties>

@@ -23,7 +23,7 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Order;
 import org.traccar.storage.query.Request;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.util.*;
@@ -287,6 +287,14 @@ public class DatabaseStorage extends Storage {
                 }
                 result.append(")");
 
+            } else if (genericCondition instanceof Condition.IsNull) {
+                var condition = (Condition.IsNull) genericCondition;
+                result.append(condition.getColumn());
+                result.append(" IS NULL");
+            } else if (genericCondition instanceof Condition.IsNotNull) {
+                var condition = (Condition.IsNotNull) genericCondition;
+                result.append(condition.getColumn());
+                result.append(" IS NOT NULL");
             }
         }
         return result.toString();
