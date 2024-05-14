@@ -153,7 +153,7 @@ public class PersistentLoginManager {
         persistentLogin.setCreated(today);
         persistentLogin.setExpiryDate(DateUtil.dateAdd(today, Calendar.DATE, expiryDays));
 
-        storage.addObject(persistentLogin, new Request(new Columns.Exclude("id")));
+        persistentLogin.setId(storage.addObject(persistentLogin, new Request(new Columns.Exclude("id"))));
 
         return  persistentLogin;
     }

@@ -1,5 +1,6 @@
 package org.traccar.model;
 
+import org.traccar.storage.QueryIgnore;
 import org.traccar.storage.StorageName;
 
 import java.util.Date;
@@ -23,7 +24,7 @@ public class PersistentLogin extends BaseModel {
     }
 
 
-
+    @QueryIgnore
     public String getSidToken() {
         return sidToken;
     }
